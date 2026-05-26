@@ -1,0 +1,21 @@
+# Encrypted vault content
+vault/*.enc
+
+# Backups
+backups/*.tar.gz
+
+# Session state (ephemeral)
+meta/session_heat.json
+
+# Cold memory index (rebuilt by reindex)
+cold/_index.json
+
+# Upgrade temp
+.upgrade-tmp/
+
+# Python
+__pycache__/
+*.pyc
+
+# OS
+.DS_Store
