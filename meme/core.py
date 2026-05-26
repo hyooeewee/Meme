@@ -2021,19 +2021,45 @@ def cmd_version(args):
         print(f"  Schema: v{data.get('schema_version', '?')}")
 
 def _check_remote_version(timeout=5):
-    """Check GitHub for the latest version. Returns (latest, current) or None."""
+    """Check for the latest published version.
+
+    Strategy: PyPI first (for uvx/pipx users), then GitHub tags fallback
+    (for install.sh users who may not publish to PyPI).
+    Returns the latest version string if newer than CURRENT_VERSION, else None.
+    """
     import urllib.request
     import urllib.error
-    url = "https://api.github.com/repos/hyooeewee/Meme/releases/latest"
+
+    # --- Try PyPI ---
     try:
-        req = urllib.request.Request(url, headers={"Accept": "application/vnd.github.v3+json"})
+        url = "https://pypi.org/pypi/pymeme/json"
+        req = urllib.request.Request(url, headers={"Accept": "application/json"})
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             data = json.loads(resp.read().decode())
-            tag = data.get("tag_name", "").lstrip("v")
-            if tag and tag != CURRENT_VERSION:
-                return tag
+            ver = data.get("info", {}).get("version", "")
+            if ver and _version_tuple(ver) > _version_tuple(CURRENT_VERSION):
+                return ver
     except (urllib.error.URLError, OSError, json.JSONDecodeError, KeyError):
         pass
+
+    # --- Fallback: GitHub tags ---
+    try:
+        url = "https://api.github.com/repos/hyooeewee/Meme/tags?per_page=20"
+        req = urllib.request.Request(url, headers={"Accept": "application/vnd.github.v3+json"})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            tags = json.loads(resp.read().decode())
+            best = _version_tuple(CURRENT_VERSION)
+            best_str = None
+            for t in tags:
+                name = t.get("name", "").lstrip("v")
+                if _version_tuple(name) > best:
+                    best = _version_tuple(name)
+                    best_str = name
+            if best_str:
+                return best_str
+    except (urllib.error.URLError, OSError, json.JSONDecodeError, KeyError):
+        pass
+
     return None
 
 
