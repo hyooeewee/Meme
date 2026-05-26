@@ -94,7 +94,7 @@ try:
         importance = r.get('importance', 0)
         tags = ', '.join(r.get('tags', []))
         content = r.get('content', '')[:300]
-        cold_mark = ' [cold] ⚠️较久未使用' if tier == 'cold' else ''
+        cold_mark = ' [cold] not accessed recently' if tier == 'cold' else ''
         lines.append(f'')
         lines.append(f'### {title} (importance: {importance}, tier: {tier}){cold_mark}')
         if tags:
