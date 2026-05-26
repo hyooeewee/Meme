@@ -10,7 +10,7 @@
 - **错误纠正**：记住 CLI 命令变更等操作性纠错，避免重复犯错
 - **知识摄入**：从 URL、文档、会话中学习并内化为记忆
 - **加密保险库**：敏感记忆通过 macOS Keychain + AES-256 加密存储
-- **Obsidian 集成**：通过 symlink 在 Obsidian 中可视化记忆图谱
+- **Obsidian 兼容**：`.md` 文件可直接在 Obsidian 中打开，图谱视图自动生效
 - **Claude Code 集成**：通过 hooks 自动注入记忆上下文
 
 ## 安装
@@ -54,12 +54,6 @@ meme install
 
 # 安装 + 从现有 Claude Code 记忆迁移
 meme install --migrate
-
-# 安装 + 设置 Obsidian 集成
-meme install --obsidian ~/Softwares/Obsidian/Meme/
-
-# 完整安装
-meme install --migrate --obsidian ~/Softwares/Obsidian/Meme/
 ```
 
 ### 验证
@@ -216,18 +210,9 @@ meme learn --file ./notes.md
       └─ knowledge_docker.md
 ```
 
-## Obsidian 集成
+## Obsidian 兼容
 
-在 Obsidian vault 中创建 symlink 指向 `~/.meme/`：
-
-```bash
-ln -s ~/.meme/ ~/Softwares/Obsidian/Meme/
-```
-
-然后在 Obsidian 中打开该 vault，即可：
-- 使用 `[[wiki-link]]` 语法在记忆之间导航
-- 在图谱视图中可视化整个记忆网络
-- 在反向链接面板查看哪些记忆引用了当前记忆
+记忆文件为标准 `.md` 格式，支持 Obsidian 的 `[[wiki-link]]` 语法。直接在 Obsidian 中打开 `~/.meme/` 目录即可使用图谱视图和反向链接。
 
 ## Claude Code 集成
 
