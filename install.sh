@@ -103,8 +103,8 @@ main() {
     fi
 
     # Create launcher symlink
-    ln -sf "$PKG_DIR/meme-cli" "$INSTALL_DIR/meme"
-    chmod +x "$PKG_DIR/meme-cli"
+    ln -sf "$PKG_DIR/meme" "$INSTALL_DIR/meme"
+    chmod +x "$PKG_DIR/meme"
 
     # Install hook scripts
     info "Installing hook scripts..."

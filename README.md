@@ -32,10 +32,10 @@ curl -sSL https://raw.githubusercontent.com/hyooeewee/Meme/main/install.sh | bas
 
 ```bash
 # uv（推荐）
-uvx meme-cli install
+uvx memectl install
 
 # pipx
-pipx run meme-cli install
+pipx run memectl install
 ```
 
 ### 方式 3：从源码安装（开发）
@@ -43,7 +43,7 @@ pipx run meme-cli install
 ```bash
 git clone https://github.com/hyooeewee/Meme.git
 cd Meme
-uv run ./meme-cli install
+uv run ./meme install
 ```
 
 ### 安装选项

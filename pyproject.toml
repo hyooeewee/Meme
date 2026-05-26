@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "meme-cli"
+name = "memectl"
 version = "0.2.0"
 description = "A centralized, tiered memory system with knowledge graph for AI assistants"
 readme = "README.md"
@@ -20,4 +20,4 @@ dependencies = [
 meme = "meme.core:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["meme"]
+packages = ["src/meme"]

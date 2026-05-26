@@ -45,7 +45,7 @@ def _get_package_resource_path(relative_path: str):
             return p
     except (ModuleNotFoundError, TypeError, FileNotFoundError):
         pass
-    # Fallback: relative to this file (script mode, e.g. `uv run meme-cli`)
+    # Fallback: relative to this file (script mode, e.g. `uv run meme`)
     fallback = Path(__file__).resolve().parent / relative_path
     if fallback.exists():
         return fallback
@@ -2032,7 +2032,7 @@ def _check_remote_version(timeout=5):
 
     # --- Try PyPI ---
     try:
-        url = "https://pypi.org/pypi/meme-cli/json"
+        url = "https://pypi.org/pypi/memectl/json"
         req = urllib.request.Request(url, headers={"Accept": "application/json"})
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             data = json.loads(resp.read().decode())
@@ -2105,7 +2105,7 @@ def cmd_upgrade(args):
         result = git_run("-C", str(pkg_dir), "pull", "--ff-only", check=False)
         if result.returncode == 0:
             print("Updated. Re-installing CLI...")
-            cli_src = pkg_dir / "meme-cli"
+            cli_src = pkg_dir / "meme"
             cli_dst = BIN_DIR / "meme"
             if cli_src.exists():
                 shutil.copy2(cli_src, cli_dst)
@@ -2128,8 +2128,8 @@ def cmd_upgrade(args):
     else:
         # Installed via uvx/pipx or other method
         print("To upgrade, run one of:")
-        print(f"  uvx meme-cli@{latest} install")
-        print(f"  pipx run meme-cli install")
+        print(f"  uvx memectl@{latest} install")
+        print(f"  pipx run memectl install")
         print(f"  curl -sSL https://raw.githubusercontent.com/hyooeewee/Meme/main/install.sh | bash")
 
 def cmd_changelog(args):
