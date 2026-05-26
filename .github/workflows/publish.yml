@@ -1,0 +1,48 @@
+# ========================================
+# Publish to PyPI on version tag push
+# ========================================
+# Usage:
+#   1. Update version in pyproject.toml
+#   2. git commit -am "bump version to 0.2.0"
+#   3. git tag v0.2.0 && git push --tags
+#
+# Required secret: PYPI_API_TOKEN (Settings > Secrets > Actions)
+#   Create token at: https://pypi.org/manage/account/token/
+
+name: Publish to PyPI
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify tag matches pyproject.toml version
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Tag version ($TAG_VERSION) != pyproject.toml version ($PKG_VERSION)"
+            exit 1
+          fi
+
+      - name: Build
+        run: |
+          pip install build
+          python -m build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
