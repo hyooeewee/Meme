@@ -60,7 +60,7 @@ echo -e "${YELLOW}[pre-push]${NC} Building package..."
 BUILD_OUTDIR=$(mktemp -d)
 trap 'rm -f "$SAVED_STDIN"; rm -rf "$BUILD_OUTDIR"' EXIT
 if command -v uv &>/dev/null; then
-    BUILD_CMD="uv build --outdist $BUILD_OUTDIR"
+    BUILD_CMD="uv build -o $BUILD_OUTDIR"
 elif python3 -c "import build" 2>/dev/null; then
     BUILD_CMD="python3 -m build --outdir $BUILD_OUTDIR"
 else
