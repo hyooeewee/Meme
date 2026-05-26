@@ -76,6 +76,7 @@ SESSION_HEAT_PATH = META_DIR / "session_heat.json"
 CONFLICT_LOG_PATH = META_DIR / "conflict_log.jsonl"
 DECAY_LOG_PATH = META_DIR / "decay_log.jsonl"
 FORGOTTEN_INDEX_PATH = META_DIR / "forgotten_index.json"
+VERSION_CHECK_PATH = META_DIR / "version_check.json"
 
 MEMORY_MD_PATH = MEME_HOME / "MEMORY.md"
 
@@ -2019,10 +2020,91 @@ def cmd_version(args):
         print(f"  Installed: {data.get('installed_at', 'unknown')}")
         print(f"  Schema: v{data.get('schema_version', '?')}")
 
+def _check_remote_version(timeout=5):
+    """Check GitHub for the latest version. Returns (latest, current) or None."""
+    import urllib.request
+    import urllib.error
+    url = "https://api.github.com/repos/hyooeewee/Meme/releases/latest"
+    try:
+        req = urllib.request.Request(url, headers={"Accept": "application/vnd.github.v3+json"})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode())
+            tag = data.get("tag_name", "").lstrip("v")
+            if tag and tag != CURRENT_VERSION:
+                return tag
+    except (urllib.error.URLError, OSError, json.JSONDecodeError, KeyError):
+        pass
+    return None
+
+
+def _version_tuple(v):
+    """Parse 'x.y.z' into (x, y, z) for comparison."""
+    try:
+        return tuple(int(x) for x in v.split("."))
+    except (ValueError, AttributeError):
+        return (0, 0, 0)
+
+
 def cmd_upgrade(args):
-    """Upgrade Meme."""
-    print("Meme upgrade: checking for updates...")
-    print("(Self-upgrade will be implemented when published to GitHub.)")
+    """Check for upgrades or perform upgrade."""
+    if getattr(args, "check", False):
+        latest = _check_remote_version()
+        if latest:
+            print(f"New version available: {CURRENT_VERSION} -> {latest}")
+            # Cache the result
+            VERSION_CHECK_PATH.write_text(json.dumps({
+                "latest": latest,
+                "current": CURRENT_VERSION,
+                "checked_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            }, indent=2))
+        else:
+            print(f"Meme {CURRENT_VERSION} is up to date.")
+        return
+
+    # Full upgrade
+    print(f"Meme v{CURRENT_VERSION}")
+    # Check for latest version first
+    latest = _check_remote_version()
+    if not latest:
+        print("Already up to date.")
+        return
+
+    print(f"New version available: {CURRENT_VERSION} -> {latest}")
+    print()
+    # Determine install method
+    pkg_dir = MEME_HOME / "pkg"
+    if (pkg_dir / ".git").exists():
+        # Installed via install.sh (git clone)
+        print("Upgrading via git pull...")
+        result = git_run("-C", str(pkg_dir), "pull", "--ff-only", check=False)
+        if result.returncode == 0:
+            print("Updated. Re-installing CLI...")
+            cli_src = pkg_dir / "meme-cli"
+            cli_dst = BIN_DIR / "meme"
+            if cli_src.exists():
+                shutil.copy2(cli_src, cli_dst)
+                cli_dst.chmod(0o755)
+            for hook_file in ["session_start.sh", "query.sh", "session_end.sh"]:
+                src = pkg_dir / "hooks" / hook_file
+                dst = BIN_DIR / f"meme-{hook_file.replace('_', '-')}"
+                if src.exists() and dst.is_symlink():
+                    shutil.copy2(src, dst)
+                    dst.chmod(0o755)
+            VERSION_CHECK_PATH.write_text(json.dumps({
+                "latest": latest,
+                "current": CURRENT_VERSION,
+                "checked_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            }, indent=2))
+            print(f"Upgraded to {latest}.")
+        else:
+            print("git pull failed. Try manually:")
+            print(f"  cd {pkg_dir} && git pull --ff-only")
+    else:
+        # Installed via uvx/pipx or other method
+        print("To upgrade, run one of:")
+        print(f"  uvx pymeme@{latest} install")
+        print(f"  pipx run pymeme install")
+        print(f"  curl -sSL https://raw.githubusercontent.com/hyooeewee/Meme/main/install.sh | bash")
 
 def cmd_changelog(args):
     """Show changelog."""

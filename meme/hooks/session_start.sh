@@ -27,6 +27,12 @@ cat > "$MEME_HOME/meta/session_heat.json" <<HEAT
 }
 HEAT
 
+# Background version check (non-blocking, result read after building context)
+VERSION_CHECK_FILE="$MEME_HOME/meta/version_check.json"
+rm -f "$VERSION_CHECK_FILE"
+"$MEME_BIN" upgrade --check > /dev/null 2>&1 &
+VERSION_PID=$!
+
 # Collect working memories
 WORKING_CONTEXT=""
 TOKEN_BUDGET=2000
@@ -91,6 +97,20 @@ if [[ -n "$CORRECTION_CONTEXT" ]]; then
 
 ## Error Correction Patterns
 $CORRECTION_CONTEXT"
+fi
+
+# Wait for version check to finish (max 3s)
+wait "$VERSION_PID" 2>/dev/null || true
+if [[ -f "$VERSION_CHECK_FILE" ]]; then
+    LATEST=$(python3 -c "import json; d=json.load(open('$VERSION_CHECK_FILE')); print(d.get('latest',''))" 2>/dev/null || true)
+    CURRENT_VER=$(python3 -c "import json; d=json.load(open('$VERSION_CHECK_FILE')); print(d.get('current',''))" 2>/dev/null || true)
+    if [[ -n "$LATEST" && -n "$CURRENT_VER" ]]; then
+        FINAL_CONTEXT="$FINAL_CONTEXT
+
+## Update Available
+Meme v$LATEST is available (current: v$CURRENT_VER).
+To upgrade: \`uvx pymeme@$LATEST install\` or \`pipx run pymeme install\`"
+    fi
 fi
 
 if [[ -z "$FINAL_CONTEXT" ]]; then
