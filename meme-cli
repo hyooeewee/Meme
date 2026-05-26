@@ -1,0 +1,11 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = ["pyyaml", "requests", "keyring", "cryptography"]
+# ///
+
+"""Thin launcher for Meme CLI. Imports and runs meme.core.main()."""
+
+from meme.core import main
+
+main()

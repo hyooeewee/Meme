@@ -1,8 +1,4 @@
-#!/usr/bin/env -S uv run --script
-# /// script
-# requires-python = ">=3.12"
-# dependencies = ["pyyaml", "requests", "keyring", "cryptography"]
-# ///
+# meme/core.py — Meme CLI core logic
 
 """
 Meme — A centralized, tiered memory system with knowledge graph.
@@ -28,6 +24,36 @@ from collections import deque
 from pathlib import Path
 
 import yaml
+
+# ========================================
+# Package data helpers
+# ========================================
+
+def _get_package_resource_path(relative_path: str):
+    """Get a path to a package resource, works in both package and script mode.
+
+    Returns a pathlib.Path if the resource exists as a file, or None.
+    Tries importlib.resources first (package mode), then falls back to
+    relative path from this file (script mode).
+    """
+    try:
+        from importlib.resources import files
+        ref = files("meme").joinpath(relative_path)
+        # For real files on disk, .locate() gives us a path
+        p = Path(str(ref))
+        if p.exists():
+            return p
+    except (ModuleNotFoundError, TypeError, FileNotFoundError):
+        pass
+    # Fallback: relative to this file (script mode, e.g. `uv run meme-cli`)
+    fallback = Path(__file__).resolve().parent / relative_path
+    if fallback.exists():
+        return fallback
+    # Also check parent directory (when running from repo root)
+    fallback2 = Path(__file__).resolve().parent.parent / "hooks" / Path(relative_path).name
+    if relative_path.startswith("hooks/") and fallback2.exists():
+        return fallback2
+    return None
 
 # ========================================
 # Constants
@@ -512,19 +538,21 @@ def cmd_install(args):
     # Write MEMORY.md
     rebuild_memory_md()
 
-    # Install CLI to bin/
-    cli_src = Path(__file__).resolve()
+    # Install CLI to bin/ (skip if symlink or installed package)
     cli_dst = BIN_DIR / "meme"
-    shutil.copy2(cli_src, cli_dst)
-    cli_dst.chmod(0o755)
+    is_symlink = cli_dst.is_symlink()
+    cli_src = Path(__file__).resolve()
+    if cli_src.exists() and not is_symlink:
+        shutil.copy2(cli_src, cli_dst)
+        cli_dst.chmod(0o755)
 
-    # Install hook scripts
-    project_root = cli_src.parent
-    hooks_src = project_root / "hooks"
+    # Install hook scripts (package-aware, skip if symlinks)
     for hook_file in ["session_start.sh", "query.sh", "session_end.sh"]:
-        src = hooks_src / hook_file
-        if src.exists():
-            dst = BIN_DIR / f"meme-{hook_file.replace('_', '-')}"
+        dst = BIN_DIR / f"meme-{hook_file.replace('_', '-')}"
+        if dst.is_symlink():
+            continue
+        src = _get_package_resource_path(f"hooks/{hook_file}")
+        if src:
             shutil.copy2(src, dst)
             dst.chmod(0o755)
 
