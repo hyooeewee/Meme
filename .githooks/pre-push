@@ -41,7 +41,7 @@ if [[ ! -f pyproject.toml ]]; then
     exit 1
 fi
 
-PKG_VERSION=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+PKG_VERSION=$(grep -m1 '^version' pyproject.toml | sed 's/.*"\(.*\)"/\1/')
 
 # Validate each tag
 for TAG in "${TAGS_PUSHED[@]}"; do
@@ -57,7 +57,17 @@ echo -e "${GREEN}[pre-push]${NC} Version check passed: v$PKG_VERSION"
 
 # Build check
 echo -e "${YELLOW}[pre-push]${NC} Building package..."
-if ! python3 -m build --sdist --wheel --outdir /tmp/meme-prepush-build 2>&1; then
+BUILD_OUTDIR=$(mktemp -d)
+trap 'rm -f "$SAVED_STDIN"; rm -rf "$BUILD_OUTDIR"' EXIT
+if command -v uv &>/dev/null; then
+    BUILD_CMD="uv build --outdist $BUILD_OUTDIR"
+elif python3 -c "import build" 2>/dev/null; then
+    BUILD_CMD="python3 -m build --outdir $BUILD_OUTDIR"
+else
+    echo -e "${RED}[pre-push]${NC} Neither 'uv' nor 'python3 -m build' available. Install one to enable build check." >&2
+    exit 1
+fi
+if ! $BUILD_CMD 2>&1; then
     echo -e "${RED}[pre-push]${NC} Build failed. Fix errors before pushing tag." >&2
     exit 1
 fi
