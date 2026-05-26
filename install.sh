@@ -140,8 +140,8 @@ main() {
     fi
 
     # Run install
-    info "Running meme install..."
-    "$INSTALL_DIR/meme" install "${@}"
+    info "Running meme setup..."
+    "$INSTALL_DIR/meme" setup "${@}"
 
     echo ""
     info "Installation complete!"

@@ -487,18 +487,18 @@ def rebuild_memory_md():
     MEMORY_MD_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 # ========================================
-# Command: install
+# Command: setup
 # ========================================
 
-def cmd_install(args):
-    """Install the Meme system."""
+def cmd_setup(args):
+    """Set up the Meme system."""
     # Check if already installed
     if MEME_HOME.exists() and (MEME_HOME / "meta" / "version.json").exists():
-        print(f"Meme is already installed at {MEME_HOME}")
+        print(f"Meme is already set up at {MEME_HOME}")
         print("Use 'meme upgrade' to update, or 'meme uninstall' first.")
         return
 
-    print("Installing Meme memory system...")
+    print("Setting up Meme memory system...")
 
     # Create directories
     for d in [WORKING_DIR, ARCHIVE_DIR, COLD_DIR, VAULT_DIR, BACKUPS_DIR, META_DIR, BIN_DIR]:
@@ -586,7 +586,7 @@ def cmd_install(args):
     if bin_str not in path:
         _setup_path(bin_str)
 
-    print(f"\nMeme installed successfully at {MEME_HOME}")
+    print(f"\nMeme set up successfully at {MEME_HOME}")
     print("  Run 'meme --help' to get started.")
 
 
@@ -2199,11 +2199,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command")
 
-    # install
-    p = sub.add_parser("install", help="Install the Meme system")
+    # setup
+    p = sub.add_parser("setup", help="Set up the Meme system")
     p.add_argument("--migrate", action="store_true", help="Also import from Claude Code")
     p.add_argument("--obsidian", type=str, help="Path to Obsidian vault for symlink")
-    p.set_defaults(func=cmd_install)
+    p.set_defaults(func=cmd_setup)
 
     # uninstall
     p = sub.add_parser("uninstall", help="Uninstall Meme")

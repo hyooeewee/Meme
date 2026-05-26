@@ -43,17 +43,17 @@ pipx run memectl install
 ```bash
 git clone https://github.com/hyooeewee/Meme.git
 cd Meme
-uv run ./meme install
+uv run ./meme setup
 ```
 
 ### 安装选项
 
 ```bash
 # 基础安装
-meme install
+meme setup
 
 # 安装 + 从现有 Claude Code 记忆迁移
-meme install --migrate
+meme setup --migrate
 ```
 
 ### 验证
@@ -216,7 +216,7 @@ meme learn --file ./notes.md
 
 ## Claude Code 集成
 
-`meme install` 自动注册三个 hooks：
+`meme setup` 自动注册三个 hooks：
 
 | Hook | 触发时机 | 行为 |
 |------|----------|------|

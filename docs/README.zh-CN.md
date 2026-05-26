@@ -26,23 +26,23 @@
 ```bash
 git clone https://github.com/<your-username>/Meme.git
 cd Meme
-./meme install
+./meme setup
 ```
 
 ### 安装选项
 
 ```bash
 # 基础安装
-./meme install
+./meme setup
 
 # 安装 + 从现有 Claude Code 记忆迁移
-./meme install --migrate
+./meme setup --migrate
 
 # 安装 + 设置 Obsidian 集成
-./meme install --obsidian ~/Softwares/Obsidian/Meme/
+./meme setup --obsidian ~/Softwares/Obsidian/Meme/
 
 # 完整安装
-./meme install --migrate --obsidian ~/Softwares/Obsidian/Meme/
+./meme setup --migrate --obsidian ~/Softwares/Obsidian/Meme/
 ```
 
 ### 安装后配置
@@ -227,7 +227,7 @@ ln -s ~/.meme/ ~/Softwares/Obsidian/Meme/
 
 ## Claude Code 集成
 
-`meme install` 自动注册三个 hooks：
+`meme setup` 自动注册三个 hooks：
 
 | Hook | 触发时机 | 行为 |
 |------|----------|------|
