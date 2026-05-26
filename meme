@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.12"
-# dependencies = ["pyyaml", "requests"]
+# dependencies = ["pyyaml", "requests", "keyring", "cryptography"]
 # ///
 
 """
@@ -131,7 +131,12 @@ def render_frontmatter(meta: dict, body: str) -> str:
 
 
 def load_memory(path: Path) -> tuple[dict, str]:
-    """Load a memory file, return (meta, body)."""
+    """Load a memory file, return (meta, body). Handles vault .enc files."""
+    if path.suffix == ".enc":
+        result = load_vault_memory(path.stem)
+        if result:
+            return result
+        return {"id": path.stem, "sensitive": True}, "[encrypted — unlock with OS keyring]"
     text = path.read_text(encoding="utf-8")
     return parse_frontmatter(text)
 
@@ -246,13 +251,16 @@ def ensure_symlink(link_path: Path, target: Path):
 # ========================================
 
 def find_all_memories(include_cold: bool = False, include_forgotten: bool = False) -> list[Path]:
-    """Find all memory .md files."""
+    """Find all memory .md and vault .enc files."""
     paths = []
     for d in [WORKING_DIR, ARCHIVE_DIR]:
         if d.exists():
             paths.extend(d.rglob("*.md"))
     if include_cold and COLD_DIR.exists():
         paths.extend(COLD_DIR.rglob("*.md"))
+    # Include vault encrypted memories
+    if VAULT_DIR.exists():
+        paths.extend(VAULT_DIR.glob("*.enc"))
     if not include_forgotten:
         forgotten = load_forgotten_index()
         forgotten_ids = set(forgotten.keys())
@@ -278,6 +286,95 @@ def find_memory_by_id(mem_id: str) -> Path | None:
         except Exception:
             continue
     return None
+
+
+# ========================================
+# Utility: Vault encryption
+# ========================================
+
+VAULT_KEYRING_SERVICE = "meme-memory-system"
+VAULT_KEYRING_USER = "vault-key"
+
+
+def _get_vault_key() -> bytes:
+    """Get or create the vault encryption key via OS keyring."""
+    import keyring
+    key_str = keyring.get_password(VAULT_KEYRING_SERVICE, VAULT_KEYRING_USER)
+    if key_str:
+        return key_str.encode("utf-8")
+    # Generate new key (Fernet key is already URL-safe base64 encoded)
+    from cryptography.fernet import Fernet
+    key = Fernet.generate_key()
+    keyring.set_password(VAULT_KEYRING_SERVICE, VAULT_KEYRING_USER, key.decode())
+    return key
+
+
+def vault_encrypt(plaintext: str) -> bytes:
+    """Encrypt a string for vault storage."""
+    from cryptography.fernet import Fernet
+    key = _get_vault_key()
+    f = Fernet(key)
+    return f.encrypt(plaintext.encode("utf-8"))
+
+
+def vault_decrypt(ciphertext: bytes) -> str:
+    """Decrypt vault ciphertext."""
+    from cryptography.fernet import Fernet
+    key = _get_vault_key()
+    f = Fernet(key)
+    return f.decrypt(ciphertext).decode("utf-8")
+
+
+def save_vault_memory(mem_id: str, meta: dict, body: str):
+    """Save an encrypted memory to the vault."""
+    import base64
+    full_content = save_memory_to_string(meta, body)
+    encrypted = vault_encrypt(full_content)
+    enc_path = VAULT_DIR / f"{mem_id}.enc"
+    enc_path.write_bytes(encrypted)
+    # Write plaintext index entry (no secrets, just metadata for search)
+    index_entry = {
+        "id": mem_id,
+        "type": meta.get("type", "knowledge"),
+        "tags": meta.get("tags", []),
+        "summary": body[:200],
+        "encrypted": True,
+    }
+    vault_index_path = VAULT_DIR / "_vault.json"
+    vault_index = {}
+    if vault_index_path.exists():
+        vault_index = json.loads(vault_index_path.read_text())
+    vault_index[mem_id] = index_entry
+    vault_index_path.write_text(json.dumps(vault_index, indent=2, ensure_ascii=False))
+    return enc_path
+
+
+def load_vault_memory(mem_id: str) -> tuple[dict, str] | None:
+    """Load and decrypt a vault memory."""
+    enc_path = VAULT_DIR / f"{mem_id}.enc"
+    if not enc_path.exists():
+        return None
+    encrypted = enc_path.read_bytes()
+    plaintext = vault_decrypt(encrypted)
+    return parse_memory_string(plaintext)
+
+
+def save_memory_to_string(meta: dict, body: str) -> str:
+    """Serialize memory to a single markdown string."""
+    yaml_str = yaml.dump(meta, allow_unicode=True, default_flow_style=False, sort_keys=False)
+    return f"---\n{yaml_str}---\n\n{body}"
+
+
+def parse_memory_string(text: str) -> tuple[dict, str]:
+    """Parse a memory string into frontmatter and body."""
+    if text.startswith("---"):
+        parts = text.split("---", 2)
+        if len(parts) >= 3:
+            meta = yaml.safe_load(parts[1]) or {}
+            body = parts[2].strip()
+            return meta, body
+    return {}, text
+
 
 # ========================================
 # Utility: Tier classification
@@ -458,11 +555,56 @@ def cmd_install(args):
     bin_str = str(BIN_DIR)
     path = os.environ.get("PATH", "")
     if bin_str not in path:
-        print(f"\n  Add to PATH: export PATH=\"{bin_str}:$PATH\"")
-        print(f"  Or symlink:  ln -s {BIN_DIR / 'meme'} /usr/local/bin/meme")
+        _setup_path(bin_str)
 
     print(f"\nMeme installed successfully at {MEME_HOME}")
     print("  Run 'meme --help' to get started.")
+
+
+def _setup_path(bin_str: str):
+    """Auto-detect shell and add bin dir to PATH."""
+    import platform
+    if platform.system() == "Windows":
+        print(f"\n  [!] Windows detected. Please add to PATH manually:")
+        print(f"      setx PATH \"%PATH%;{bin_str}\"")
+        print(f"  Or run inside WSL for full support.")
+        return
+
+    shell = os.environ.get("SHELL", "")
+    export_line = f'export PATH="{bin_str}:$PATH"'
+    marker = "# meme-memory-system"
+
+    # Determine rc file
+    rc_file = None
+    if "zsh" in shell:
+        rc_file = Path.home() / ".zshrc"
+    elif "bash" in shell:
+        # macOS ships zsh by default; bash users go to .bash_profile
+        rc_file = Path.home() / ".bash_profile"
+    elif "fish" in shell:
+        # Fish uses a different syntax
+        export_line = f'set -gx PATH "{bin_str}" $PATH'
+        rc_file = Path.home() / ".config" / "fish" / "config.fish"
+    else:
+        rc_file = Path.home() / ".profile"
+
+    # Check if already configured
+    if rc_file.exists():
+        content = rc_file.read_text(encoding="utf-8")
+        if bin_str in content:
+            print(f"  PATH already configured in {rc_file.name}")
+            return
+
+    # Append to rc file
+    try:
+        rc_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(rc_file, "a", encoding="utf-8") as f:
+            f.write(f"\n{marker}\n{export_line}\n")
+        print(f"  Added to PATH in {rc_file}")
+        print(f"  Run 'source {rc_file}' or restart your shell.")
+    except Exception as e:
+        print(f"\n  [!] Could not write to {rc_file}: {e}")
+        print(f"  Please add manually: {export_line}")
 
 
 def _setup_project_symlinks():
@@ -580,12 +722,43 @@ def cmd_uninstall(args):
                 if link.is_symlink():
                     link.unlink()
 
+    # Remove PATH entry from shell rc files
+    _remove_path_entry()
+
     keep_data = getattr(args, "keep_data", False)
     if keep_data:
         print(f"Hooks and symlinks removed. Data preserved at {MEME_HOME}")
     else:
         shutil.rmtree(MEME_HOME)
         print(f"Meme completely removed from {MEME_HOME}")
+
+
+def _remove_path_entry():
+    """Remove meme PATH entry from shell rc files."""
+    marker = "# meme-memory-system"
+    for rc_name in [".zshrc", ".bash_profile", ".profile"]:
+        rc_file = Path.home() / rc_name
+        if not rc_file.exists():
+            continue
+        try:
+            lines = rc_file.read_text(encoding="utf-8").splitlines()
+            new_lines = []
+            skip_next = False
+            for line in lines:
+                if marker in line:
+                    skip_next = True  # skip the marker line itself
+                    continue
+                if skip_next and line.strip().startswith("export PATH") and ".meme" in line:
+                    skip_next = False
+                    continue
+                if skip_next and line.strip().startswith("set -gx PATH") and ".meme" in line:
+                    skip_next = False
+                    continue
+                skip_next = False
+                new_lines.append(line)
+            rc_file.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+        except Exception:
+            pass
 
 # ========================================
 # Command: add
@@ -634,15 +807,15 @@ def cmd_add(args):
     tier = get_tier(meta)
     mem_dir = get_memory_dir(mem_type, tier)
 
-    # Handle sensitive memories
+    # Handle sensitive memories — encrypt and save to vault
     if sensitive:
-        mem_dir = VAULT_DIR
-
-    mem_path = mem_dir / f"{mem_id}.md"
-    save_memory(mem_path, meta, content)
-
-    # Update index
-    _update_index_entry(mem_id, meta, mem_path)
+        mem_path = save_vault_memory(mem_id, meta, content)
+        # Index with vault path
+        _update_index_entry(mem_id, meta, mem_path)
+    else:
+        mem_path = get_memory_dir(mem_type, tier) / f"{mem_id}.md"
+        save_memory(mem_path, meta, content)
+        _update_index_entry(mem_id, meta, mem_path)
 
     # Update graph
     if links:
@@ -724,8 +897,36 @@ def cmd_search(args):
     query_terms = set(re.findall(r"\w+", query))
 
     results = []
+    # Load vault index for searching encrypted memories without decryption
+    vault_index = {}
+    vault_index_path = VAULT_DIR / "_vault.json"
+    if vault_index_path.exists():
+        try:
+            vault_index = json.loads(vault_index_path.read_text())
+        except Exception:
+            pass
+
     for p in find_all_memories(include_cold=True):
         try:
+            # Vault .enc files: search against index summary (no decryption)
+            if p.suffix == ".enc":
+                vid = p.stem
+                entry = vault_index.get(vid, {})
+                text = (entry.get("summary", "") + " " + " ".join(entry.get("tags", []))).lower()
+                score = sum(text.count(t) for t in query_terms)
+                if score > 0:
+                    results.append({
+                        "id": vid,
+                        "type": entry.get("type", "sensitive"),
+                        "importance": 0.5,
+                        "tier": "vault",
+                        "score": score,
+                        "path": str(p),
+                        "summary": entry.get("summary", "[encrypted]")[:120],
+                        "sensitive": True,
+                    })
+                continue
+
             meta, body = load_memory(p)
             if meta.get("forgotten"):
                 continue
