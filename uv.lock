@@ -263,8 +263,8 @@ wheels = [
 ]
 
 [[package]]
-name = "meme-memory"
-version = "0.1.0"
+name = "memectl"
+version = "0.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "cryptography" },
