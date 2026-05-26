@@ -2032,7 +2032,7 @@ def _check_remote_version(timeout=5):
 
     # --- Try PyPI ---
     try:
-        url = "https://pypi.org/pypi/pymeme/json"
+        url = "https://pypi.org/pypi/meme-cli/json"
         req = urllib.request.Request(url, headers={"Accept": "application/json"})
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             data = json.loads(resp.read().decode())
@@ -2128,8 +2128,8 @@ def cmd_upgrade(args):
     else:
         # Installed via uvx/pipx or other method
         print("To upgrade, run one of:")
-        print(f"  uvx pymeme@{latest} install")
-        print(f"  pipx run pymeme install")
+        print(f"  uvx meme-cli@{latest} install")
+        print(f"  pipx run meme-cli install")
         print(f"  curl -sSL https://raw.githubusercontent.com/hyooeewee/Meme/main/install.sh | bash")
 
 def cmd_changelog(args):

@@ -11,7 +11,7 @@
 #   2. Go to your project > Publishing > Add a new publisher
 #      - Owner: hyooeewee
 #      - Repository: Meme
-#      - Workflow name: publish.yml
+#      - Workflow name: publish.yaml
 #      - Environment name: pypi
 #   3. In GitHub repo Settings > Environments, create "pypi" environment
 
@@ -32,6 +32,8 @@ jobs:
       id-token: write  # Required for PyPI trusted publishers (OIDC)
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Needed for git describe to find tags
 
       - uses: actions/setup-python@v5
         with:
@@ -39,7 +41,18 @@ jobs:
 
       - name: Verify tag matches pyproject.toml version
         run: |
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          # On tag push: GITHUB_REF_NAME is the tag (e.g. "v0.2.0")
+          # On workflow_dispatch: GITHUB_REF_NAME is "main", so grab latest tag
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            TAG_VERSION="${GITHUB_REF_NAME#v}"
+          else
+            TAG_VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')
+            if [[ -z "$TAG_VERSION" ]]; then
+              echo "::error::No tags found. Push a tag first (e.g. git tag v0.2.0 && git push --tags)"
+              exit 1
+            fi
+            echo "Manual trigger: using latest tag v$TAG_VERSION"
+          fi
           PKG_VERSION=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
           if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
             echo "::error::Tag version ($TAG_VERSION) != pyproject.toml version ($PKG_VERSION)"

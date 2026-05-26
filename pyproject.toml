@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "pymeme"
+name = "meme-cli"
 version = "0.2.0"
 description = "A centralized, tiered memory system with knowledge graph for AI assistants"
 readme = "README.md"
