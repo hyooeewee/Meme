@@ -1937,6 +1937,49 @@ def cmd_heat(args):
         print(f"  {mid}: heat={info.get('heat', 0):.2f}")
 
 # ========================================
+# Command: auth (biometric-gated secret access)
+# ========================================
+
+def cmd_auth(args):
+    """Authenticate and export a vault secret as an environment variable."""
+    mem_id = args.mem_id
+    var_name = args.var or "MEM_SECRET"
+
+    # Find the memory
+    mem_path = find_memory_by_id(mem_id)
+    if not mem_path:
+        print(f"echo 'ERROR: Memory {mem_id} not found' >&2", file=sys.stderr)
+        sys.exit(1)
+
+    # Must be a vault memory
+    if mem_path.suffix != ".enc":
+        print(f"echo 'ERROR: {mem_id} is not a sensitive (vault) memory' >&2",
+              file=sys.stderr)
+        sys.exit(1)
+
+    # Auth: retrieving the vault key triggers OS-level auth (Touch ID / Hello / password)
+    try:
+        key = _get_vault_key()
+    except Exception as e:
+        print(f"echo 'ERROR: Authentication failed — {e}' >&2", file=sys.stderr)
+        sys.exit(1)
+
+    # Decrypt
+    try:
+        meta, body = load_vault_memory(mem_id)
+    except Exception as e:
+        print(f"echo 'ERROR: Decryption failed — {e}' >&2", file=sys.stderr)
+        sys.exit(1)
+
+    if not body:
+        print(f"echo 'ERROR: Memory {mem_id} is empty' >&2", file=sys.stderr)
+        sys.exit(1)
+
+    # Output export statement to stdout (consumed by source)
+    escaped = body.replace("'", "'\\''")
+    print(f"export {var_name}='{escaped}'")
+
+# ========================================
 # Command: version / upgrade / changelog
 # ========================================
 
@@ -2168,6 +2211,13 @@ def build_parser() -> argparse.ArgumentParser:
     # heat
     p = sub.add_parser("heat", help="Show session heat map")
     p.set_defaults(func=cmd_heat)
+
+    # auth
+    p = sub.add_parser("auth", help="Authenticate and export a vault secret")
+    p.add_argument("mem_id", help="Vault memory ID to authenticate")
+    p.add_argument("--var", default=None,
+                   help="Environment variable name (default: MEM_SECRET)")
+    p.set_defaults(func=cmd_auth)
 
     # version
     p = sub.add_parser("version", help="Show version")
