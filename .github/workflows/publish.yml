@@ -6,8 +6,14 @@
 #   2. git commit -am "bump version to 0.2.0"
 #   3. git tag v0.2.0 && git push --tags
 #
-# Required secret: PYPI_API_TOKEN (Settings > Secrets > Actions)
-#   Create token at: https://pypi.org/manage/account/token/
+# Setup (one-time):
+#   1. Create PyPI account at pypi.org
+#   2. Go to your project > Publishing > Add a new publisher
+#      - Owner: hyooeewee
+#      - Repository: Meme
+#      - Workflow name: publish.yml
+#      - Environment name: pypi
+#   3. In GitHub repo Settings > Environments, create "pypi" environment
 
 name: Publish to PyPI
 
@@ -19,8 +25,10 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    environment: pypi
     permissions:
       contents: read
+      id-token: write  # Required for PyPI trusted publishers (OIDC)
     steps:
       - uses: actions/checkout@v4
 
@@ -44,5 +52,3 @@ jobs:
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          password: ${{ secrets.PYPI_API_TOKEN }}
