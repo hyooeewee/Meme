@@ -365,11 +365,19 @@ def save_vault_memory(mem_id: str, meta: dict, body: str):
     enc_path = VAULT_DIR / f"{mem_id}.enc"
     enc_path.write_bytes(encrypted)
     # Write plaintext index entry (no secrets, just metadata for search)
+    # Mask sensitive values in summary so it is safe to return in search results
+    summary_raw = body[:200]
+    summary_masked = re.sub(
+        r'(token|key|secret|password|passwd|pwd|credential|auth)\s*[:=]\s*\S+',
+        r'\1: ***',
+        summary_raw,
+        flags=re.IGNORECASE,
+    )
     index_entry = {
         "id": mem_id,
         "type": meta.get("type", "knowledge"),
         "tags": meta.get("tags", []),
-        "summary": body[:200],
+        "summary": summary_masked,
         "encrypted": True,
     }
     vault_index_path = VAULT_DIR / "_vault.json"
@@ -1156,14 +1164,20 @@ def cmd_search(args):
         # JSON output for programmatic consumption (e.g., hooks)
         out = []
         for r in results[:20]:
-            out.append({
+            item = {
                 "id": r["id"],
                 "title": r["title"],
                 "importance": r["importance"],
                 "tier": r["tier"],
                 "tags": r.get("tags", []),
-                "content": r.get("content", r["summary"]),
-            })
+            }
+            # Vault memories: do not leak content, return masked summary only
+            if r.get("sensitive") or r["tier"] == "vault":
+                item["content"] = r.get("summary", "[encrypted]")
+                item["sensitive"] = True
+            else:
+                item["content"] = r.get("content", r["summary"])
+            out.append(item)
         print(json.dumps(out))
         return
 
@@ -2191,6 +2205,66 @@ def cmd_auth(args):
     print(f"export {var_name}='{escaped}'")
 
 # ========================================
+# Command: run (vault-gated command execution)
+# ========================================
+
+def cmd_run(args):
+    """Decrypt a vault secret, inject it as an env var, and exec a command.
+
+    The AI never sees the plaintext — it only references the variable name.
+    Example: meme run mem_xxx --var API_TOKEN -- curl -H "Authorization: Bearer $API_TOKEN" https://api.example.com
+    """
+    mem_id = args.mem_id
+    var_name = args.var or "MEM_SECRET"
+    cmd_list = args.cmd
+
+    if not cmd_list:
+        print("ERROR: No command provided after '--'", file=sys.stderr)
+        sys.exit(1)
+
+    # Find the memory
+    mem_path = find_memory_by_id(mem_id)
+    if not mem_path:
+        print(f"ERROR: Memory {mem_id} not found", file=sys.stderr)
+        sys.exit(1)
+
+    if mem_path.suffix != ".enc":
+        print(f"ERROR: {mem_id} is not a vault memory", file=sys.stderr)
+        sys.exit(1)
+
+    # Auth + decrypt (triggers OS-level Touch ID / password if needed)
+    try:
+        _get_vault_key()
+    except Exception as e:
+        print(f"ERROR: Authentication failed — {e}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        meta, body = load_vault_memory(mem_id)
+    except Exception as e:
+        print(f"ERROR: Decryption failed — {e}", file=sys.stderr)
+        sys.exit(1)
+
+    if not body:
+        print(f"ERROR: Memory {mem_id} is empty", file=sys.stderr)
+        sys.exit(1)
+
+    # Inject into environment (AI never sees this value)
+    os.environ[var_name] = body.strip()
+
+    # Exec the target command — this replaces the current process
+    # so the secret is never returned as output to the AI
+    try:
+        os.execvp(cmd_list[0], cmd_list)
+    except FileNotFoundError:
+        print(f"ERROR: Command not found: {cmd_list[0]}", file=sys.stderr)
+        sys.exit(127)
+    except Exception as e:
+        print(f"ERROR: Failed to execute command — {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+# ========================================
 # Command: version / upgrade / changelog
 # ========================================
 
@@ -2603,6 +2677,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--var", default=None,
                    help="Environment variable name (default: MEM_SECRET)")
     p.set_defaults(func=cmd_auth)
+
+    # run
+    p = sub.add_parser("run", help="Run a command with a vault secret as env var")
+    p.add_argument("mem_id", help="Vault memory ID")
+    p.add_argument("--var", default=None,
+                   help="Environment variable name (default: MEM_SECRET)")
+    p.add_argument("cmd", nargs="*",
+                   help="Command to execute (after --)")
+    p.set_defaults(func=cmd_run)
 
     # version
     p = sub.add_parser("version", help="Show version")

@@ -138,6 +138,25 @@ class TestDelete:
         assert "Total: 0" in out or "0 memories" in out or "No memories" in out
 
 
+class TestRun:
+    def test_run_missing_command(self, cli_runner, init_meme):
+        """Run without a command after '--' should fail."""
+        code, out, err = cli_runner("run", "mem_nonexistent")
+        assert code != 0, f"Expected non-zero exit for missing command. out={out!r} err={err!r}"
+        assert "No command" in err or "ERROR" in err
+
+    def test_run_non_vault_memory(self, cli_runner, init_meme):
+        """Run targeting a non-vault memory should fail."""
+        cli_runner("add", "regular memory", "--type", "feedback")
+        code, out, err = cli_runner("list", "--format", "json")
+        results = json.loads(out)
+        mem_id = results[0]["id"]
+
+        code, out, err = cli_runner("run", mem_id, "--", "echo", "hello")
+        assert code != 0, "Expected non-zero exit for non-vault memory"
+        assert "not a vault memory" in err or "not a sensitive" in err or "ERROR" in err
+
+
 class TestDoctor:
     def test_doctor_passes_fresh_install(self, cli_runner, init_meme):
         code, out, err = cli_runner("doctor")

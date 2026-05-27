@@ -40,6 +40,74 @@ if [[ -z "$PROMPT" || ${#PROMPT} -lt 3 ]]; then
     exit 0
 fi
 
+# ---- Auto-add memory on "remember" commands ----
+REMEMBER_CONTENT=$(echo "$PROMPT" | python3 -c '
+import sys, re
+text = sys.stdin.read().strip()
+
+triggers = ["请记住", "记住这个", "记住以下", "记住：", "记住:", "记住", "记下来",
+            "remember that", "remember this", "keep in mind that", "keep in mind", "remember"]
+
+is_remember = any(t.lower() in text.lower() for t in triggers)
+if not is_remember:
+    sys.exit(0)  # exit 0 so set -e does not kill the script
+
+# Exclude first-person recall patterns ("I remember..." / "我记得..." are recall, not commands)
+exclude_recall = [
+    r"\b(i|we)\s+remember\b",
+    r"我记得",
+    r"我想起来了",
+    r"我回想",
+    r"我记起",
+]
+for p in exclude_recall:
+    if re.search(p, text, re.IGNORECASE):
+        is_remember = False
+        break
+
+if not is_remember:
+    sys.exit(0)
+
+content = text
+for t in sorted(triggers, key=len, reverse=True):
+    content = re.sub(r"(?i)" + re.escape(t) + r"\s*[,:：]?\s*", "", content, count=1)
+content = content.strip()
+content = re.sub(r"[。\.!！?？]+$", "", content)
+
+if len(content) >= 3:
+    print(content)
+' 2>/dev/null || true)
+
+if [[ -n "$REMEMBER_CONTENT" ]]; then
+    # Detect sensitive content (API keys, passwords, tokens, secrets)
+    IS_SENSITIVE=$(echo "$REMEMBER_CONTENT" | python3 -c '
+import sys, re
+text = sys.stdin.read().lower()
+patterns = [
+    r"api\s*(?:key|token|secret)",
+    r"password", r"passwd", r"pwd",
+    r"secret", r"credential",
+    r"token\s*[:=]",
+    r"private\s*key", r"ssh\s*key",
+    r"access\s*(?:key|token|secret)",
+    r"auth\s*(?:key|token|secret)",
+]
+for p in patterns:
+    if re.search(p, text):
+        sys.exit(0)
+sys.exit(1)
+' 2>/dev/null && echo "yes" || echo "no")
+
+    if [[ "$IS_SENSITIVE" == "yes" ]]; then
+        # Save to encrypted vault
+        "$MEME_BIN" add "$REMEMBER_CONTENT" --type feedback --importance 0.5 --sensitive 2>/dev/null || true
+    else
+        # Normal save
+        "$MEME_BIN" add "$REMEMBER_CONTENT" --type feedback --importance 0.5 2>/dev/null || true
+    fi
+fi
+# ------------------------------------------------
+
 # Extract keywords (remove common stop words, take significant words)
 KEYWORDS=$(echo "$PROMPT" | python3 -c '
 import sys, re
@@ -93,13 +161,17 @@ try:
         title = r.get("title", "Untitled")
         importance = r.get("importance", 0)
         tags = ", ".join(r.get("tags", []))
-        content = r.get("content", "")[:300]
+        is_sensitive = r.get("sensitive") or tier == "vault"
         cold_mark = " [cold] not accessed recently" if tier == "cold" else ""
+        vault_mark = " [encrypted]" if is_sensitive else ""
         lines.append("")
-        lines.append(f"### {title} (importance: {importance}, tier: {tier}){cold_mark}")
+        lines.append(f"### {title} (importance: {importance}, tier: {tier}){cold_mark}{vault_mark}")
         if tags:
             lines.append(f"Tags: {tags}")
-        lines.append(content)
+        if is_sensitive:
+            lines.append("[encrypted — authorization required]")
+        else:
+            lines.append(r.get("content", "")[:300])
     print("\n".join(lines))
 except Exception as e:
     pass

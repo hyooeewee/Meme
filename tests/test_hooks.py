@@ -107,6 +107,32 @@ class TestQueryHook:
         assert "additionalContext" in out["hookSpecificOutput"]
         assert "mem_test_uv" in out["hookSpecificOutput"]["additionalContext"]
 
+    def test_query_hook_no_auto_remember_on_recall(self, tmp_path, monkeypatch):
+        """First-person recall patterns like 'I remember' must NOT trigger auto-add."""
+        meme_home = tmp_path / ".meme"
+        monkeypatch.setenv("MEME_HOME", str(meme_home))
+        for d in [meme_home / "archive" / "feedback", meme_home / "meta"]:
+            d.mkdir(parents=True, exist_ok=True)
+        (meme_home / "meta" / "index.json").write_text("{}", encoding="utf-8")
+        (meme_home / "meta" / "graph.json").write_text("{}", encoding="utf-8")
+        _create_meme_bin_wrapper(meme_home)
+
+        # This prompt contains "remember" but is a question / recall, not a command
+        result = subprocess.run(
+            ["bash", str(HOOKS_SRC / "query.sh")],
+            input=json.dumps(
+                {"prompt": [{"type": "text", "text": "为什么ai不自己执行，我记得有设计ai自己执行"}]}
+            ),
+            capture_output=True,
+            text=True,
+            env={**os.environ, "MEME_HOME": str(meme_home)},
+        )
+        out = json.loads(result.stdout)
+        assert out["continue"] is True
+        assert out.get("suppressOutput") is True
+        # No memory should have been created
+        assert not list((meme_home / "archive" / "feedback").glob("*.md"))
+
     def test_query_hook_json_valid(self, tmp_path, monkeypatch):
         """Hook output must always be valid JSON."""
         meme_home = tmp_path / ".meme"
