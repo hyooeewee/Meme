@@ -6,6 +6,12 @@
 
 """Thin launcher for Meme CLI. Imports and runs meme.core.main()."""
 
+import sys
+from pathlib import Path
+
+# Add src/ to path so meme package can be imported when running as script
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
+
 from meme.core import main
 
 main()
