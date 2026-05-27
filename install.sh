@@ -122,26 +122,28 @@ main() {
         fi
     done
 
-    # Add to PATH if needed
-    if [[ ":$PATH:" != *":$INSTALL_DIR:"* ]]; then
-        local shell_rc=""
-        case "$(basename "$SHELL")" in
-            zsh)  shell_rc="$HOME/.zshrc" ;;
-            bash) shell_rc="$HOME/.bash_profile" ;;
-            fish) shell_rc="$HOME/.config/fish/config.fish" ;;
-            *)    shell_rc="$HOME/.profile" ;;
-        esac
+    # Ensure PATH is available in current shell
+    export PATH="$INSTALL_DIR:$PATH"
 
-        if [[ -n "$shell_rc" ]]; then
-            local path_line='export PATH="$HOME/.meme/bin:$PATH"'
-            if ! grep -qF '.meme/bin' "$shell_rc" 2>/dev/null; then
-                echo "" >> "$shell_rc"
-                echo "# meme-memory-system" >> "$shell_rc"
-                echo "$path_line" >> "$shell_rc"
-                info "Added $INSTALL_DIR to PATH in $shell_rc"
-            fi
+    # Add to shell rc file if not already present
+    local shell_rc=""
+    case "$(basename "$SHELL")" in
+        zsh)  shell_rc="$HOME/.zshrc" ;;
+        bash) shell_rc="$HOME/.bash_profile" ;;
+        fish) shell_rc="$HOME/.config/fish/config.fish" ;;
+        *)    shell_rc="$HOME/.profile" ;;
+    esac
+
+    local added_to_rc=false
+    if [[ -n "$shell_rc" ]]; then
+        local path_line='export PATH="$HOME/.meme/bin:$PATH"'
+        if ! grep -qF '.meme/bin' "$shell_rc" 2>/dev/null; then
+            echo "" >> "$shell_rc"
+            echo "# meme-memory-system" >> "$shell_rc"
+            echo "$path_line" >> "$shell_rc"
+            info "Added $INSTALL_DIR to PATH in $shell_rc"
+            added_to_rc=true
         fi
-        export PATH="$INSTALL_DIR:$PATH"
     fi
 
     # Run install
@@ -151,7 +153,9 @@ main() {
     echo ""
     info "Installation complete!"
     echo "  Run 'meme --help' to get started."
-    echo "  You may need to restart your shell or run: source ~/.zshrc"
+    if [[ "$added_to_rc" == true ]]; then
+        echo "  Restart your shell or run: source $shell_rc"
+    fi
 }
 
 main "$@"

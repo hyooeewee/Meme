@@ -545,12 +545,22 @@ def cmd_setup(args):
     # Write MEMORY.md
     rebuild_memory_md()
 
-    # Install CLI to bin/ (skip if symlink or installed package)
+    # Install CLI launcher to bin/ (skip if symlink)
     cli_dst = BIN_DIR / "meme"
-    is_symlink = cli_dst.is_symlink()
-    cli_src = Path(__file__).resolve()
-    if cli_src.exists() and not is_symlink:
-        shutil.copy2(cli_src, cli_dst)
+    if not cli_dst.is_symlink():
+        launcher = (
+            '#!/usr/bin/env python3\n'
+            '"""Meme CLI launcher."""\n'
+            'import sys\n'
+            'from pathlib import Path\n'
+            '# install.sh keeps source in ~/.meme/pkg/src/\n'
+            '_pkg_src = Path(__file__).resolve().parent.parent / "pkg" / "src"\n'
+            'if _pkg_src.exists():\n'
+            '    sys.path.insert(0, str(_pkg_src))\n'
+            'from meme.core import main\n'
+            'main()\n'
+        )
+        cli_dst.write_text(launcher, encoding="utf-8")
         cli_dst.chmod(0o755)
 
     # Install hook scripts (package-aware, skip if symlinks)
