@@ -65,7 +65,7 @@ def _get_package_resource_path(relative_path: str):
 # Constants
 # ========================================
 
-MEME_HOME = Path.home() / ".meme"
+MEME_HOME = Path(os.environ.get("MEME_HOME", str(Path.home() / ".meme")))
 WORKING_DIR = MEME_HOME / "working"
 ARCHIVE_DIR = MEME_HOME / "archive"
 COLD_DIR = MEME_HOME / "cold"
@@ -1041,7 +1041,14 @@ def cmd_list(args):
         memories.sort(key=lambda x: -x["access_count"])
 
     if not memories:
-        print("No memories found.")
+        if getattr(args, "format", "text") == "json":
+            print(json.dumps([]))
+        else:
+            print("No memories found.")
+        return
+
+    if getattr(args, "format", "text") == "json":
+        print(json.dumps(memories, ensure_ascii=False))
         return
 
     # Display
@@ -2466,6 +2473,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--tag", default=None)
     p.add_argument("--sort", default="importance", choices=["importance", "recent", "heat"])
     p.add_argument("--forgotten", action="store_true")
+    p.add_argument("--format", default="text", choices=["text", "json"],
+                   help="Output format (default: text)")
     p.set_defaults(func=cmd_list)
 
     # search

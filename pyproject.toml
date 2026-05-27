@@ -20,5 +20,21 @@ dependencies = [
 [project.scripts]
 meme = "meme.core:main"
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov",
+]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/meme"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+    "pytest-cov>=7.1.0",
+]
