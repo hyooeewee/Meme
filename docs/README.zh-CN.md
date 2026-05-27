@@ -17,7 +17,7 @@
 
 ### 前置要求
 
-- Python 3.12+
+- Python 3.10+
 - [uv](https://docs.astral.sh/uv/)（Python 包管理器）
 - Git
 

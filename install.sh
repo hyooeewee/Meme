@@ -22,17 +22,22 @@ warn()  { echo -e "${YELLOW}[meme]${NC} $*"; }
 error() { echo -e "${RED}[meme]${NC} $*" >&2; }
 
 # --- Check prerequisites ---
+PYTHON_CMD=""
 check_python() {
-    if command -v python3 &>/dev/null; then
-        local ver
-        ver=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
-        local major minor
-        major=$(echo "$ver" | cut -d. -f1)
-        minor=$(echo "$ver" | cut -d. -f2)
-        if [[ "$major" -ge 3 && "$minor" -ge 12 ]]; then
-            return 0
+    # Try specific versions first (Homebrew style), then generic python3
+    for cmd in python3.12 python3.11 python3.10 python3 python; do
+        if command -v "$cmd" &>/dev/null; then
+            local ver
+            ver=$($cmd -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+            local major minor
+            major=$(echo "$ver" | cut -d. -f1)
+            minor=$(echo "$ver" | cut -d. -f2)
+            if [[ "$major" -ge 3 && "$minor" -ge 10 ]]; then
+                PYTHON_CMD="$cmd"
+                return 0
+            fi
         fi
-    fi
+    done
     return 1
 }
 
@@ -50,13 +55,13 @@ main() {
 
     # Check Python
     if ! check_python; then
-        error "Python 3.12+ is required."
+        error "Python 3.10+ is required."
         echo "  Install with: brew install python@3.12  (macOS)"
-        echo "                apt install python3.12    (Ubuntu)"
+        echo "                apt install python3.10    (Ubuntu)"
         echo "                or visit https://www.python.org/downloads/"
         exit 1
     fi
-    info "Python $(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")') found"
+    info "Python $($PYTHON_CMD -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")') found"
 
     # Check/install uv
     if ! check_uv; then
