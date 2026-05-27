@@ -1317,10 +1317,11 @@ def cmd_learn(args):
     """Learn from URL or file and create a memory."""
     import requests as req
 
-    if args.url:
-        print(f"Fetching: {args.url}")
+    url = args.url or args.url_flag
+    if url:
+        print(f"Fetching: {url}")
         try:
-            resp = req.get(args.url, timeout=30)
+            resp = req.get(url, timeout=30)
             resp.raise_for_status()
             content = resp.text
             # Strip HTML tags for a rough text extraction
@@ -1328,7 +1329,7 @@ def cmd_learn(args):
             content = re.sub(r"<style[^>]*>.*?</style>", "", content, flags=re.DOTALL)
             content = re.sub(r"<[^>]+>", " ", content)
             content = re.sub(r"\s+", " ", content).strip()
-            source_url = args.url
+            source_url = url
         except Exception as e:
             print(f"Failed to fetch URL: {e}")
             return
@@ -2471,8 +2472,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     # learn
     p = sub.add_parser("learn", help="Learn from URL or file")
-    p.add_argument("--url", default=None)
-    p.add_argument("--file", default=None)
+    p.add_argument("url", nargs="?", default=None, help="URL to learn from")
+    p.add_argument("--url", dest="url_flag", default=None, help="URL to learn from (alternative)")
+    p.add_argument("--file", default=None, help="Local file to learn from")
     p.add_argument("--slug", default="")
     p.add_argument("--importance", type=float, default=0.5)
     p.add_argument("--tags", default="")
