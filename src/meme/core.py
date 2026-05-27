@@ -377,14 +377,19 @@ def _touch_id_auth(reason: str = "Access Meme vault") -> bool:
         return False
 
 
-def _get_vault_key() -> bytes:
-    """Get or create the vault encryption key via OS keyring."""
+def _get_vault_key(require_auth: bool = True) -> bytes:
+    """Get or create the vault encryption key via OS keyring.
+
+    When require_auth is True (default for reads), macOS Touch ID / password
+    is prompted before accessing the keychain. When False (for writes),
+    the key is retrieved silently so new vault items can be created without
+    interrupting the user.
+    """
     import platform
-    if platform.system() == "Darwin":
+    if require_auth and platform.system() == "Darwin":
         # Prompt Touch ID / password before accessing keychain
         if not _touch_id_auth("Authenticate to access Meme vault"):
             # Touch ID cancelled or unavailable — still try keyring
-            # (keyring may fall back to password dialog or fail)
             pass
     import keyring
     key_str = keyring.get_password(VAULT_KEYRING_SERVICE, VAULT_KEYRING_USER)
@@ -400,7 +405,7 @@ def _get_vault_key() -> bytes:
 def vault_encrypt(plaintext: str) -> bytes:
     """Encrypt a string for vault storage."""
     from cryptography.fernet import Fernet
-    key = _get_vault_key()
+    key = _get_vault_key(require_auth=False)
     f = Fernet(key)
     return f.encrypt(plaintext.encode("utf-8"))
 
@@ -408,32 +413,44 @@ def vault_encrypt(plaintext: str) -> bytes:
 def vault_decrypt(ciphertext: bytes) -> str:
     """Decrypt vault ciphertext."""
     from cryptography.fernet import Fernet
-    key = _get_vault_key()
+    key = _get_vault_key(require_auth=True)
     f = Fernet(key)
     return f.decrypt(ciphertext).decode("utf-8")
 
 
 def save_vault_memory(mem_id: str, meta: dict, body: str):
-    """Save an encrypted memory to the vault."""
-    import base64
-    full_content = save_memory_to_string(meta, body)
+    """Save an encrypted memory to the vault.
+
+    Extracts the secret value from body for encryption, and the descriptive
+    text for the plaintext index summary. This ensures the encrypted file
+    contains only the secret (e.g. 'sk-live-xxx'), making it safe to inject
+    directly as an environment variable via `meme auth` or `meme run`.
+    """
+    body = body.strip()
+
+    # Try to separate description from secret value.
+    # E.g. "我的 API token 是 sk-live-xxx" -> desc="我的 API token", secret="sk-live-xxx"
+    # E.g. "API token: sk-live-xxx"        -> desc="API token",      secret="sk-live-xxx"
+    m = re.search(r'^(.{3,200}?)\s*(?:是|为|:|：|=)\s*(.+)$', body)
+    if m:
+        description = m.group(1).strip()
+        secret_value = m.group(2).strip()
+    else:
+        # No clear separator: treat entire body as secret.
+        description = meta.get("type", "secret").upper()
+        secret_value = body
+
+    # Encrypt only the secret value (with frontmatter)
+    full_content = save_memory_to_string(meta, secret_value)
     encrypted = vault_encrypt(full_content)
     enc_path = VAULT_DIR / f"{mem_id}.enc"
     enc_path.write_bytes(encrypted)
     # Write plaintext index entry (no secrets, just metadata for search)
-    # Mask sensitive values in summary so it is safe to return in search results
-    summary_raw = body[:200]
-    summary_masked = re.sub(
-        r'(token|key|secret|password|passwd|pwd|credential|auth)\s*[:=]\s*\S+',
-        r'\1: ***',
-        summary_raw,
-        flags=re.IGNORECASE,
-    )
     index_entry = {
         "id": mem_id,
         "type": meta.get("type", "knowledge"),
         "tags": meta.get("tags", []),
-        "summary": summary_masked,
+        "summary": summary,
         "encrypted": True,
     }
     vault_index_path = VAULT_DIR / "_vault.json"
@@ -1071,9 +1088,47 @@ def cmd_list(args):
     sort_by = args.sort or "importance"
     show_forgotten = args.forgotten or False
 
+    # Load vault index once for metadata-only access to encrypted memories
+    vault_index = {}
+    vault_index_path = VAULT_DIR / "_vault.json"
+    if vault_index_path.exists():
+        try:
+            vault_index = json.loads(vault_index_path.read_text())
+        except Exception:
+            pass
+
     memories = []
     for p in find_all_memories(include_cold=True, include_forgotten=show_forgotten):
         try:
+            # Vault .enc files: read metadata from index without decrypting
+            if p.suffix == ".enc":
+                entry = vault_index.get(p.stem, {})
+                meta = {
+                    "id": entry.get("id", p.stem),
+                    "type": entry.get("type", "sensitive"),
+                    "importance": 0.5,
+                    "tags": entry.get("tags", []),
+                    "sensitive": True,
+                    "encrypted": True,
+                }
+                tier = "vault"
+                if tier_filter and tier != tier_filter:
+                    continue
+                if tag_filter and tag_filter not in meta.get("tags", []):
+                    continue
+                memories.append({
+                    "id": meta["id"],
+                    "type": meta["type"],
+                    "importance": meta["importance"],
+                    "tier": tier,
+                    "tags": meta["tags"],
+                    "last_accessed": "",
+                    "access_count": 0,
+                    "path": str(p),
+                    "summary": entry.get("summary", "[encrypted]")[:80].replace("\n", " "),
+                })
+                continue
+
             meta, body = load_memory(p)
             if meta.get("forgotten") and not show_forgotten:
                 continue
@@ -1127,6 +1182,44 @@ def cmd_list(args):
               f"type={m['type']}{tags_str}")
         print(f"    {m['summary']}")
     print(f"\nTotal: {len(memories)} memories")
+
+# ========================================
+# Command: show
+# ========================================
+
+def cmd_show(args):
+    """Show a memory's full content. For vault memories, triggers auth."""
+    mem_id = args.id
+    path = find_memory_by_id(mem_id)
+    if not path:
+        print(f"Memory not found: {mem_id}")
+        return
+
+    # Vault memory: decrypt (triggers Touch ID / password)
+    if path.suffix == ".enc":
+        try:
+            meta, body = load_vault_memory(mem_id)
+        except Exception as e:
+            print(f"ERROR: Failed to decrypt vault memory — {e}", file=sys.stderr)
+            sys.exit(1)
+        print(f"ID: {meta.get('id', mem_id)}")
+        print(f"Type: {meta.get('type', 'unknown')}")
+        print(f"Importance: {meta.get('importance', 0.5)}")
+        print(f"Tags: {', '.join(meta.get('tags', []))}")
+        print(f"Tier: vault [encrypted]")
+        print("-" * 40)
+        print(body)
+        return
+
+    # Regular memory
+    meta, body = load_memory(path)
+    print(f"ID: {meta.get('id', mem_id)}")
+    print(f"Type: {meta.get('type', 'unknown')}")
+    print(f"Importance: {meta.get('importance', 0.5)}")
+    print(f"Tags: {', '.join(meta.get('tags', []))}")
+    print(f"Tier: {get_tier(meta)}")
+    print("-" * 40)
+    print(body)
 
 # ========================================
 # Command: search
@@ -2611,6 +2704,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--format", default="text", choices=["text", "json"],
                    help="Output format (default: text)")
     p.set_defaults(func=cmd_list)
+
+    # search
+    # show
+    p = sub.add_parser("show", help="Show a memory's full content")
+    p.add_argument("id", help="Memory ID")
+    p.set_defaults(func=cmd_show)
 
     # search
     p = sub.add_parser("search", help="Search memories by keyword")
