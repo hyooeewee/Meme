@@ -60,7 +60,7 @@ stops = {"the","a","an","is","are","was","were","be","been","being",
          "of","into","what","which","who","whom","whose",
          "help","please","want","know","think","make","get","go","come",
          "好的","是的","对的","请","帮","我","你","他","她","它","吗","呢","吧"}
-words = re.findall(r"[a-zA-Z0-9_一-鿿]+", text)
+words = re.findall(r"[a-zA-Z0-9_]+|[一-鿿]+", text)
 keywords = [w for w in words if w not in stops and len(w) > 1]
 # Take top 8 keywords
 print(" ".join(keywords[:8]))
@@ -81,54 +81,54 @@ if [[ "$SEARCH_RESULT" == "[]" || -z "$SEARCH_RESULT" ]]; then
 fi
 
 # Format results as additionalContext
-CONTEXT=$(python3 -c "
+CONTEXT=$(echo "$SEARCH_RESULT" | python3 -c '
 import json, sys
 try:
-    results = json.loads('''$SEARCH_RESULT''')
+    results = json.load(sys.stdin)
     if not results:
         sys.exit(0)
-    lines = ['## Related Memories (from Meme)']
+    lines = ["## Related Memories (from Meme)"]
     for r in results[:5]:  # Max 5 results
-        tier = r.get('tier', 'unknown')
-        title = r.get('title', 'Untitled')
-        importance = r.get('importance', 0)
-        tags = ', '.join(r.get('tags', []))
-        content = r.get('content', '')[:300]
-        cold_mark = ' [cold] not accessed recently' if tier == 'cold' else ''
-        lines.append(f'')
-        lines.append(f'### {title} (importance: {importance}, tier: {tier}){cold_mark}')
+        tier = r.get("tier", "unknown")
+        title = r.get("title", "Untitled")
+        importance = r.get("importance", 0)
+        tags = ", ".join(r.get("tags", []))
+        content = r.get("content", "")[:300]
+        cold_mark = " [cold] not accessed recently" if tier == "cold" else ""
+        lines.append("")
+        lines.append(f"### {title} (importance: {importance}, tier: {tier}){cold_mark}")
         if tags:
-            lines.append(f'Tags: {tags}')
+            lines.append(f"Tags: {tags}")
         lines.append(content)
-    print('\n'.join(lines))
+    print("\n".join(lines))
 except Exception as e:
     pass
-" 2>/dev/null)
+' 2>/dev/null)
 
 if [[ -z "$CONTEXT" ]]; then
     echo '{"continue":true,"suppressOutput":true}'
 else
     # Update session heat (track memory IDs, not keywords)
-    python3 -c "
-import json, os, time
-heat_file = os.path.expanduser('~/.meme/meta/session_heat.json')
+    echo "$SEARCH_RESULT" | python3 -c '
+import json, os, time, sys
+heat_file = os.path.expanduser("~/.meme/meta/session_heat.json")
 try:
     with open(heat_file) as f:
         heat = json.load(f)
-    results = json.loads('''$SEARCH_RESULT''')
-    now = time.strftime('%Y-%m-%dT%H:%M:%SZ')
+    results = json.load(sys.stdin)
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ")
     for r in results[:5]:
-        mem_id = r.get('id')
+        mem_id = r.get("id")
         if mem_id:
-            heat['heat_map'][mem_id] = {
-                'accessed_at': now,
-                'heat': 1.0
+            heat["heat_map"][mem_id] = {
+                "accessed_at": now,
+                "heat": 1.0
             }
-    with open(heat_file, 'w') as f:
+    with open(heat_file, "w") as f:
         json.dump(heat, f, indent=2)
 except:
     pass
-" 2>/dev/null
+' 2>/dev/null
 
     ESCAPED=$(echo "$CONTEXT" | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read()))')
     echo "{\"continue\":true,\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":$ESCAPED}}"

@@ -497,13 +497,18 @@ def rebuild_memory_md():
 
 def cmd_setup(args):
     """Set up the Meme system."""
-    # Check if already installed
-    if MEME_HOME.exists() and (MEME_HOME / "meta" / "version.json").exists():
+    is_dev = getattr(args, "dev", False)
+    already_installed = MEME_HOME.exists() and (MEME_HOME / "meta" / "version.json").exists()
+
+    if already_installed and not is_dev:
         print(f"Meme is already set up at {MEME_HOME}")
         print("Use 'meme upgrade' to update, or 'meme uninstall' first.")
         return
 
-    print("Setting up Meme memory system...")
+    if already_installed and is_dev:
+        print("Re-syncing hooks in dev mode...")
+    else:
+        print("Setting up Meme memory system...")
 
     # Create directories
     for d in [WORKING_DIR, ARCHIVE_DIR, COLD_DIR, VAULT_DIR, BACKUPS_DIR, META_DIR, BIN_DIR]:
@@ -528,12 +533,14 @@ def cmd_setup(args):
     save_index({})
     save_graph({})
 
+    is_dev = getattr(args, "dev", False)
     version_data = {
         "installed_version": CURRENT_VERSION,
         "installed_at": datetime.datetime.now().isoformat(),
         "schema_version": CURRENT_SCHEMA,
         "last_upgrade": None,
         "last_doctor": None,
+        "dev": is_dev,
     }
     VERSION_PATH.write_text(json.dumps(version_data, indent=2))
 
@@ -544,13 +551,22 @@ def cmd_setup(args):
     # Write MEMORY.md
     rebuild_memory_md()
 
-    # Install hook scripts (package-aware, skip if symlinks)
+    # Install hook scripts (copy in prod, symlink in dev)
     for hook_file in ["session_start.sh", "query.sh", "session_end.sh"]:
         dst = BIN_DIR / f"meme-{hook_file.replace('_', '-')}"
-        if dst.is_symlink():
-            continue
         src = _get_package_resource_path(f"hooks/{hook_file}")
-        if src:
+        if not src:
+            continue
+        if is_dev:
+            if dst.exists() or dst.is_symlink():
+                dst.unlink()
+            dst.symlink_to(src)
+            print(f"  Dev hook: {dst} -> {src}")
+        else:
+            if dst.is_symlink():
+                dst.unlink()
+            elif dst.exists():
+                continue
             shutil.copy2(src, dst)
             dst.chmod(0o755)
 
@@ -2397,6 +2413,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("setup", help="Set up the Meme system")
     p.add_argument("--migrate", action="store_true", help="Also import from Claude Code")
     p.add_argument("--obsidian", type=str, help="Path to Obsidian vault for symlink")
+    p.add_argument("--dev", action="store_true", help="Symlink hook scripts instead of copying (for local development)")
     p.set_defaults(func=cmd_setup)
 
     # init
