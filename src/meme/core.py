@@ -570,6 +570,23 @@ def cmd_setup(args):
             shutil.copy2(src, dst)
             dst.chmod(0o755)
 
+    # In dev mode, symlink the CLI entry point so `meme` works from PATH
+    if is_dev:
+        cli_dst = BIN_DIR / "meme"
+        repo_root = Path(__file__).resolve().parent.parent.parent
+        venv_meme = repo_root / ".venv" / "bin" / "meme"
+        launcher = repo_root / "meme"
+        if venv_meme.exists():
+            if cli_dst.exists() or cli_dst.is_symlink():
+                cli_dst.unlink()
+            cli_dst.symlink_to(venv_meme)
+            print(f"  Dev CLI: {cli_dst} -> {venv_meme}")
+        elif launcher.exists():
+            if cli_dst.exists() or cli_dst.is_symlink():
+                cli_dst.unlink()
+            cli_dst.symlink_to(launcher)
+            print(f"  Dev CLI: {cli_dst} -> {launcher}")
+
     # Create symlinks for Claude Code projects
     _setup_project_symlinks()
 

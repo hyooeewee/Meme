@@ -4,8 +4,17 @@
 import sys
 from pathlib import Path
 
+REPO_ROOT = Path(__file__).resolve().parent
+VENV_PYTHON = REPO_ROOT / ".venv" / "bin" / "python"
+
+# If a local venv exists, re-exec with it so dependencies are available
+if VENV_PYTHON.exists() and sys.executable != str(VENV_PYTHON):
+    import os
+
+    os.execv(str(VENV_PYTHON), [str(VENV_PYTHON), __file__] + sys.argv[1:])
+
 # Add src/ to path so meme package can be imported when running as script
-sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
+sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from meme.core import main
 
