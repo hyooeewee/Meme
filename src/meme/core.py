@@ -2202,6 +2202,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="meme",
         description="Meme — A centralized, tiered memory system with knowledge graph.",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
         version=f"%(prog)s {CURRENT_VERSION}",
     )
     sub = parser.add_subparsers(dest="command")
