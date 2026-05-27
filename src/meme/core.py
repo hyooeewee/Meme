@@ -20,7 +20,6 @@ import json
 # ========================================
 
 from meme import __version__ as CURRENT_VERSION
-import math
 import os
 import re
 import shutil
@@ -918,6 +917,14 @@ def cmd_list(args):
 # Command: search
 # ========================================
 
+def _extract_title(body: str, mem_id: str) -> str:
+    """Extract title from body h1 or fallback to id."""
+    m = re.search(r"^#\s+(.+)$", body, re.MULTILINE)
+    if m:
+        return m.group(1).strip()
+    return mem_id
+
+
 def cmd_search(args):
     """Search memories by keyword (simple TF-IDF-like scoring)."""
     query = args.query.lower()
@@ -944,12 +951,15 @@ def cmd_search(args):
                 if score > 0:
                     results.append({
                         "id": vid,
+                        "title": entry.get("summary", vid)[:60],
                         "type": entry.get("type", "sensitive"),
                         "importance": 0.5,
                         "tier": "vault",
                         "score": score,
                         "path": str(p),
                         "summary": entry.get("summary", "[encrypted]")[:120],
+                        "content": entry.get("summary", "[encrypted]")[:500],
+                        "tags": entry.get("tags", []),
                         "sensitive": True,
                     })
                 continue
@@ -969,12 +979,15 @@ def cmd_search(args):
                 tier = get_tier(meta)
                 results.append({
                     "id": meta.get("id", p.stem),
+                    "title": _extract_title(body, meta.get("id", p.stem)),
                     "type": meta.get("type", "unknown"),
                     "importance": meta.get("importance", 0.5),
                     "tier": tier,
                     "score": score,
                     "path": str(p),
                     "summary": body[:120].replace("\n", " "),
+                    "content": body[:500].replace("\n", " "),
+                    "tags": meta.get("tags", []),
                 })
         except Exception:
             continue
@@ -982,9 +995,28 @@ def cmd_search(args):
     results.sort(key=lambda x: -x["score"])
 
     if not results:
-        print(f'No memories found for "{args.query}".')
+        if getattr(args, "format", "text") == "json":
+            print("[]")
+        else:
+            print(f'No memories found for "{args.query}".')
         return
 
+    if getattr(args, "format", "text") == "json":
+        # JSON output for programmatic consumption (e.g., hooks)
+        out = []
+        for r in results[:20]:
+            out.append({
+                "id": r["id"],
+                "title": r["title"],
+                "importance": r["importance"],
+                "tier": r["tier"],
+                "tags": r.get("tags", []),
+                "content": r.get("content", r["summary"]),
+            })
+        print(json.dumps(out))
+        return
+
+    # Text output (default)
     print(f'Search results for "{args.query}":\n')
     for r in results[:20]:
         cold_marker = " [cold] ⚠️ 较久未使用" if r["tier"] == "cold" else ""
@@ -2021,8 +2053,7 @@ def cmd_version(args):
 def _check_remote_version(timeout=5):
     """Check for the latest published version.
 
-    Strategy: PyPI first (for uvx/pipx users), then GitHub tags fallback
-    (for install.sh users who may not publish to PyPI).
+    Strategy: PyPI first, then GitHub tags fallback.
     Returns the latest version string if newer than CURRENT_VERSION, else None.
     """
     import urllib.request
@@ -2295,6 +2326,8 @@ def build_parser() -> argparse.ArgumentParser:
     # search
     p = sub.add_parser("search", help="Search memories by keyword")
     p.add_argument("query", help="Search query")
+    p.add_argument("--format", default="text", choices=["text", "json"],
+                   help="Output format (default: text)")
     p.set_defaults(func=cmd_search)
 
     # query

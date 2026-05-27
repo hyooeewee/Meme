@@ -72,7 +72,7 @@ if [[ -z "$KEYWORDS" ]]; then
 fi
 
 # Search memories using meme CLI
-SEARCH_RESULT=$("$MEME_BIN" search $KEYWORDS --format json 2>/dev/null || echo "[]")
+SEARCH_RESULT=$("$MEME_BIN" search "$KEYWORDS" --format json 2>/dev/null || echo "[]")
 
 # Check if we got results
 if [[ "$SEARCH_RESULT" == "[]" || -z "$SEARCH_RESULT" ]]; then
@@ -108,19 +108,22 @@ except Exception as e:
 if [[ -z "$CONTEXT" ]]; then
     echo '{"continue":true,"suppressOutput":true}'
 else
-    # Update session heat
+    # Update session heat (track memory IDs, not keywords)
     python3 -c "
 import json, os, time
 heat_file = os.path.expanduser('~/.meme/meta/session_heat.json')
 try:
     with open(heat_file) as f:
         heat = json.load(f)
-    keywords = '''$KEYWORDS'''.split()
-    for kw in keywords:
-        heat['heat_map'][kw] = {
-            'accessed_at': time.strftime('%Y-%m-%dT%H:%M:%SZ'),
-            'heat': 1.0
-        }
+    results = json.loads('''$SEARCH_RESULT''')
+    now = time.strftime('%Y-%m-%dT%H:%M:%SZ')
+    for r in results[:5]:
+        mem_id = r.get('id')
+        if mem_id:
+            heat['heat_map'][mem_id] = {
+                'accessed_at': now,
+                'heat': 1.0
+            }
     with open(heat_file, 'w') as f:
         json.dump(heat, f, indent=2)
 except:

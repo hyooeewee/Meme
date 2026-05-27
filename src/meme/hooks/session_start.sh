@@ -109,7 +109,7 @@ if [[ -f "$VERSION_CHECK_FILE" ]]; then
 
 ## Update Available
 Meme v$LATEST is available (current: v$CURRENT_VER).
-To upgrade: \`uvx memectl@$LATEST install\` or \`pipx run memectl install\`"
+To upgrade: \`meme upgrade\`"
     fi
 fi
 
