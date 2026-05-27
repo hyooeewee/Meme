@@ -301,6 +301,9 @@ def find_all_memories(include_cold: bool = False, include_forgotten: bool = Fals
 
 
 def _is_forgotten(path: Path, forgotten_ids: set) -> bool:
+    # Vault .enc files: avoid decrypting just to check forgotten status
+    if path.suffix == ".enc":
+        return path.stem in forgotten_ids
     try:
         meta, _ = load_memory(path)
         return meta.get("id") in forgotten_ids or meta.get("forgotten")
@@ -311,6 +314,11 @@ def _is_forgotten(path: Path, forgotten_ids: set) -> bool:
 def find_memory_by_id(mem_id: str) -> Path | None:
     """Find a memory file by its ID."""
     for p in find_all_memories(include_cold=True):
+        # Vault .enc files: avoid decrypting; the filename stem is the id
+        if p.suffix == ".enc":
+            if p.stem == mem_id:
+                return p
+            continue
         try:
             meta, _ = load_memory(p)
             if meta.get("id") == mem_id:
@@ -328,8 +336,56 @@ VAULT_KEYRING_SERVICE = "meme-memory-system"
 VAULT_KEYRING_USER = "vault-key"
 
 
+def _touch_id_auth(reason: str = "Access Meme vault") -> bool:
+    """Authenticate with Touch ID / Face ID on macOS. Returns True if authenticated."""
+    import platform
+    if platform.system() != "Darwin":
+        return False
+    try:
+        from LocalAuthentication import LAContext
+        import Foundation
+
+        context = LAContext.alloc().init()
+        avail, _ = context.canEvaluatePolicy_error_(1, None)
+        if not avail:
+            # Biometrics not available, fall back to device password
+            avail, _ = context.canEvaluatePolicy_error_(2, None)
+            if not avail:
+                return False
+            policy = 2  # LAPolicyDeviceOwnerAuthentication
+        else:
+            policy = 1  # LAPolicyDeviceOwnerAuthenticationWithBiometrics
+
+        result = {"done": False, "success": False}
+
+        def callback(success, error):
+            result["done"] = True
+            result["success"] = success
+            result["error"] = error
+
+        context.evaluatePolicy_localizedReason_reply_(policy, reason, callback)
+
+        for _ in range(100):
+            if result["done"]:
+                break
+            Foundation.NSRunLoop.currentRunLoop().runMode_beforeDate_(
+                Foundation.NSDefaultRunLoopMode,
+                Foundation.NSDate.dateWithTimeIntervalSinceNow_(0.1),
+            )
+        return result.get("success", False)
+    except Exception:
+        return False
+
+
 def _get_vault_key() -> bytes:
     """Get or create the vault encryption key via OS keyring."""
+    import platform
+    if platform.system() == "Darwin":
+        # Prompt Touch ID / password before accessing keychain
+        if not _touch_id_auth("Authenticate to access Meme vault"):
+            # Touch ID cancelled or unavailable — still try keyring
+            # (keyring may fall back to password dialog or fail)
+            pass
     import keyring
     key_str = keyring.get_password(VAULT_KEYRING_SERVICE, VAULT_KEYRING_USER)
     if key_str:
