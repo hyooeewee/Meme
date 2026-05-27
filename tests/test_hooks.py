@@ -17,6 +17,18 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 HOOKS_SRC = REPO_ROOT / "src" / "meme" / "hooks"
 
 
+def _create_meme_bin_wrapper(meme_home: Path) -> None:
+    """Create a bin/meme wrapper in meme_home so hook scripts can invoke the CLI."""
+    bin_dir = meme_home / "bin"
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    wrapper = bin_dir / "meme"
+    wrapper.write_text(
+        f'#!/usr/bin/env bash\nexport MEME_HOME="{meme_home}"\nexec {sys.executable} -m meme.core "$@"\n',
+        encoding="utf-8",
+    )
+    wrapper.chmod(0o755)
+
+
 class TestQueryHook:
     def test_query_hook_empty_prompt(self, tmp_path, monkeypatch):
         """Empty prompt should return suppressOutput."""
@@ -55,10 +67,11 @@ class TestQueryHook:
         meme_home = tmp_path / ".meme"
         monkeypatch.setenv("MEME_HOME", str(meme_home))
         # Initialize minimal structure
-        for d in [meme_home / "archive" / "knowledge", meme_home / "meta", meme_home / "bin"]:
+        for d in [meme_home / "archive" / "knowledge", meme_home / "meta"]:
             d.mkdir(parents=True, exist_ok=True)
         (meme_home / "meta" / "index.json").write_text("{}", encoding="utf-8")
         (meme_home / "meta" / "graph.json").write_text("{}", encoding="utf-8")
+        _create_meme_bin_wrapper(meme_home)
         # Write a test memory
         mem_path = meme_home / "archive" / "knowledge" / "mem_test_uv.md"
         mem_path.write_text(
@@ -168,6 +181,7 @@ class TestSessionStartHook:
             '{"session_id":"test","started":"2026-05-27T00:00:00","heat_map":{}}',
             encoding="utf-8",
         )
+        _create_meme_bin_wrapper(meme_home)
 
         result = subprocess.run(
             ["bash", str(HOOKS_SRC / "session_start.sh")],
@@ -192,6 +206,7 @@ class TestSessionEndHook:
             '{"session_id":"test","started":"2026-05-27T00:00:00","heat_map":{"mem_a":{"accessed_at":"2026-05-27T01:00:00","heat":1.0}}}',
             encoding="utf-8",
         )
+        _create_meme_bin_wrapper(meme_home)
 
         result = subprocess.run(
             ["bash", str(HOOKS_SRC / "session_end.sh")],

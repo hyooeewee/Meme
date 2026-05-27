@@ -131,11 +131,11 @@ class TestDelete:
         results = json.loads(out)
         mem_id = results[0]["id"]
 
-        code, out, err = cli_runner("delete", mem_id)
+        code, out, err = cli_runner("delete", "--force", mem_id)
         assert code == 0, f"stderr: {err}"
 
         code, out, err = cli_runner("list")
-        assert "Total: 0" in out or "0 memories" in out
+        assert "Total: 0" in out or "0 memories" in out or "No memories" in out
 
 
 class TestDoctor:

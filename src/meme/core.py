@@ -1048,7 +1048,12 @@ def cmd_list(args):
         return
 
     if getattr(args, "format", "text") == "json":
-        print(json.dumps(memories, ensure_ascii=False))
+        import datetime as _dt
+        def _json_default(obj):
+            if isinstance(obj, (_dt.date, _dt.datetime)):
+                return obj.isoformat()
+            raise TypeError
+        print(json.dumps(memories, ensure_ascii=False, default=_json_default))
         return
 
     # Display

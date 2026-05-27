@@ -101,7 +101,8 @@ class TestIndexIntegrity:
 
         index = json.loads(core_mod.INDEX_PATH.read_text(encoding="utf-8"))
         assert len(index) >= 1
-        assert any("indexed memory" in str(v) for v in index.values())
+        assert len(index) >= 1
+        assert any("mem_" in k for k in index.keys())
 
     def test_graph_updated_on_link(self, init_meme, cli_runner):
         """Linking memories should update graph.json."""

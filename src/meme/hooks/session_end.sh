@@ -101,4 +101,4 @@ except:
 
 PYEOF
 
-exit 0
+echo '{"continue":true}'
