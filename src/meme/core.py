@@ -13,6 +13,30 @@ import argparse
 import datetime
 import hashlib
 import json
+
+
+# ========================================
+# Version — single source of truth in pyproject.toml
+# ========================================
+
+def _get_version() -> str:
+    """Read version from installed package metadata or pyproject.toml."""
+    try:
+        from importlib.metadata import version
+        return version("memectl")
+    except Exception:
+        pass
+    try:
+        import tomllib
+        pp = Path(__file__).resolve().parent.parent.parent / "pyproject.toml"
+        with pp.open("rb") as f:
+            return tomllib.load(f)["project"]["version"]
+    except Exception:
+        pass
+    return "0.0.0"
+
+
+CURRENT_VERSION = _get_version()
 import math
 import os
 import re
@@ -80,7 +104,6 @@ VERSION_CHECK_PATH = META_DIR / "version_check.json"
 
 MEMORY_MD_PATH = MEME_HOME / "MEMORY.md"
 
-CURRENT_VERSION = "0.2.1"
 CURRENT_SCHEMA = 1
 
 TOKEN_BUDGET_WORKING = 2000  # tokens
