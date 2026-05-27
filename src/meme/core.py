@@ -19,24 +19,7 @@ import json
 # Version — single source of truth in pyproject.toml
 # ========================================
 
-def _get_version() -> str:
-    """Read version from installed package metadata or pyproject.toml."""
-    try:
-        from importlib.metadata import version
-        return version("memectl")
-    except Exception:
-        pass
-    try:
-        import tomllib
-        pp = Path(__file__).resolve().parent.parent.parent / "pyproject.toml"
-        with pp.open("rb") as f:
-            return tomllib.load(f)["project"]["version"]
-    except Exception:
-        pass
-    return "0.0.0"
-
-
-CURRENT_VERSION = _get_version()
+from meme import __version__ as CURRENT_VERSION
 import math
 import os
 import re
