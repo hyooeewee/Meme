@@ -80,7 +80,7 @@ VERSION_CHECK_PATH = META_DIR / "version_check.json"
 
 MEMORY_MD_PATH = MEME_HOME / "MEMORY.md"
 
-CURRENT_VERSION = "0.1.0"
+CURRENT_VERSION = "0.2.1"
 CURRENT_SCHEMA = 1
 
 TOKEN_BUDGET_WORKING = 2000  # tokens
@@ -2196,6 +2196,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="meme",
         description="Meme — A centralized, tiered memory system with knowledge graph.",
+        version=f"%(prog)s {CURRENT_VERSION}",
     )
     sub = parser.add_subparsers(dest="command")
 
