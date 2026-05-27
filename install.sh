@@ -8,6 +8,7 @@ set -euo pipefail
 
 REPO_URL="${MEME_REPO:-https://github.com/hyooeewee/Meme}"
 INSTALL_DIR="$HOME/.meme/bin"
+VENV_DIR="$HOME/.meme/venv"
 
 # --- Colors ---
 RED='\033[0;31m'
@@ -38,10 +39,6 @@ check_python() {
     return 1
 }
 
-check_pip() {
-    "$PYTHON_CMD" -m pip --version &>/dev/null
-}
-
 # --- Main ---
 main() {
     info "Installing Meme memory system..."
@@ -56,16 +53,16 @@ main() {
     fi
     info "Python $($PYTHON_CMD -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")') found"
 
-    # Check pip
-    if ! check_pip; then
-        error "pip is required but not found for $PYTHON_CMD."
-        echo "  Install with: $PYTHON_CMD -m ensurepip --upgrade"
-        exit 1
-    fi
-    info "pip found"
-
-    # Create install dir
+    # Create directories
     mkdir -p "$INSTALL_DIR"
+
+    # Create venv (idempotent)
+    if [[ ! -d "$VENV_DIR" ]]; then
+        info "Creating virtual environment..."
+        "$PYTHON_CMD" -m venv "$VENV_DIR"
+    fi
+    local venv_pip="$VENV_DIR/bin/pip"
+    local venv_python="$VENV_DIR/bin/python"
 
     # Download and install from tarball
     info "Downloading Meme..."
@@ -84,13 +81,17 @@ main() {
     rm -f "$tmp_tar"
 
     info "Installing package..."
-    "$PYTHON_CMD" -m pip install "$tmp_dir"
+    "$venv_pip" install "$tmp_dir"
     rm -rf "$tmp_dir"
 
-    # Ensure pip-installed bin dir is on PATH
-    local pip_bin
-    pip_bin="$($PYTHON_CMD -m site --user-base)/bin"
-    export PATH="$pip_bin:$PATH"
+    # Symlink entry point into ~/.meme/bin/
+    local venv_meme="$VENV_DIR/bin/meme"
+    if [[ -f "$venv_meme" ]]; then
+        ln -sf "$venv_meme" "$INSTALL_DIR/meme"
+    fi
+
+    # Ensure PATH is available in current shell
+    export PATH="$INSTALL_DIR:$PATH"
 
     # Add to shell rc file if not already present
     local shell_rc=""
@@ -103,7 +104,6 @@ main() {
 
     local added_to_rc=false
     if [[ -n "$shell_rc" ]]; then
-        # Check both .meme/bin and pip user bin
         if ! grep -qF '.meme/bin' "$shell_rc" 2>/dev/null; then
             echo "" >> "$shell_rc"
             echo "# meme-memory-system" >> "$shell_rc"
@@ -111,16 +111,11 @@ main() {
             info "Added $INSTALL_DIR to PATH in $shell_rc"
             added_to_rc=true
         fi
-        if ! grep -qF "$pip_bin" "$shell_rc" 2>/dev/null; then
-            echo "export PATH=\"$pip_bin:\$PATH\"" >> "$shell_rc"
-            info "Added $pip_bin to PATH in $shell_rc"
-            added_to_rc=true
-        fi
     fi
 
     # Run setup
     info "Running meme setup..."
-    meme setup ${1+"$@"}
+    "$INSTALL_DIR/meme" setup ${1+"$@"}
 
     echo ""
     info "Installation complete!"
