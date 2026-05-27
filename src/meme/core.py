@@ -2087,18 +2087,67 @@ def cmd_upgrade(args):
 
     # Full upgrade
     print(f"Meme v{CURRENT_VERSION}")
+    force = getattr(args, "force", False)
     # Check for latest version first
     latest = _check_remote_version()
-    if not latest:
+    if not latest and not force:
         print("Already up to date.")
         return
+    if force and not latest:
+        latest = CURRENT_VERSION  # force reinstall current version
 
     print(f"New version available: {CURRENT_VERSION} -> {latest}")
     print()
-    # Determine install method
+
+    venv_dir = MEME_HOME / "venv"
     pkg_dir = MEME_HOME / "pkg"
-    if (pkg_dir / ".git").exists():
-        # Installed via install.sh (git clone)
+
+    if venv_dir.exists():
+        # Installed via install.sh (venv + pip)
+        venv_pip = venv_dir / "bin" / "pip"
+        if venv_pip.exists():
+            print("Upgrading via pip in venv...")
+            result = subprocess.run(
+                [str(venv_pip), "install", "--upgrade", "memectl"],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode == 0:
+                print("Package updated. Refreshing hooks...")
+                # Re-install hook scripts from package
+                for hook_file in ["session_start.sh", "query.sh", "session_end.sh"]:
+                    dst = BIN_DIR / f"meme-{hook_file.replace('_', '-')}"
+                    if dst.is_symlink():
+                        continue
+                    src = _get_package_resource_path(f"hooks/{hook_file}")
+                    if src:
+                        shutil.copy2(src, dst)
+                        dst.chmod(0o755)
+                # Update version meta
+                if VERSION_PATH.exists():
+                    data = json.loads(VERSION_PATH.read_text())
+                    data["installed_version"] = latest
+                    data["last_upgrade"] = datetime.datetime.now().isoformat()
+                    VERSION_PATH.write_text(json.dumps(data, indent=2))
+                VERSION_CHECK_PATH.write_text(json.dumps({
+                    "latest": latest,
+                    "current": CURRENT_VERSION,
+                    "checked_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                }, indent=2))
+                git_commit(f"upgrade: v{latest}")
+                print(f"Upgraded to {latest}.")
+                print("  Run 'meme --version' to verify.")
+            else:
+                print("pip upgrade failed:")
+                print(result.stderr or result.stdout)
+                print("Try manually:")
+                print(f"  {venv_pip} install --upgrade memectl")
+        else:
+            print(f"venv found but pip missing at {venv_pip}")
+            print("To upgrade, re-run the installer:")
+            print("  curl -sSL https://raw.githubusercontent.com/hyooeewee/Meme/main/install.sh | bash")
+    elif (pkg_dir / ".git").exists():
+        # Legacy: installed via old install.sh (git clone)
         print("Upgrading via git pull...")
         result = git_run("-C", str(pkg_dir), "pull", "--ff-only", check=False)
         if result.returncode == 0:
@@ -2114,21 +2163,25 @@ def cmd_upgrade(args):
                 if src.exists() and dst.is_symlink():
                     shutil.copy2(src, dst)
                     dst.chmod(0o755)
+            if VERSION_PATH.exists():
+                data = json.loads(VERSION_PATH.read_text())
+                data["installed_version"] = latest
+                data["last_upgrade"] = datetime.datetime.now().isoformat()
+                VERSION_PATH.write_text(json.dumps(data, indent=2))
             VERSION_CHECK_PATH.write_text(json.dumps({
                 "latest": latest,
                 "current": CURRENT_VERSION,
                 "checked_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             }, indent=2))
+            git_commit(f"upgrade: v{latest}")
             print(f"Upgraded to {latest}.")
         else:
             print("git pull failed. Try manually:")
             print(f"  cd {pkg_dir} && git pull --ff-only")
     else:
-        # Installed via uvx/pipx or other method
-        print("To upgrade, run one of:")
-        print(f"  uvx memectl@{latest} install")
-        print(f"  pipx run memectl install")
-        print(f"  curl -sSL https://raw.githubusercontent.com/hyooeewee/Meme/main/install.sh | bash")
+        print("Unknown installation method.")
+        print("To upgrade, re-run the installer:")
+        print("  curl -sSL https://raw.githubusercontent.com/hyooeewee/Meme/main/install.sh | bash")
 
 def cmd_changelog(args):
     """Show changelog."""
