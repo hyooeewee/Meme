@@ -712,6 +712,112 @@ def _register_hooks():
     settings_path.write_text(json.dumps(settings, indent=2, ensure_ascii=False))
 
 # ========================================
+# Command: init
+# ========================================
+
+CLAUDE_MD_TEMPLATE = """# Meme — Project Memory System
+
+This project uses [Meme](https://github.com/hyooeewee/Meme) for centralized memory management.
+
+## Quick Reference
+
+| Command | Purpose |
+|---------|---------|
+| `meme add "content"` | Add a new memory |
+| `meme search "keyword"` | Search memories |
+| `meme list` | List all memories |
+| `meme edit <id>` | Edit a memory |
+| `meme link <id_a> <id_b>` | Link two memories |
+
+## Project Memory
+
+- Project memory file: `~/.meme/archive/projects/{project_safe_name}.md`
+- Working memories: `~/.meme/working/` (always loaded)
+- Archive memories: `~/.meme/archive/` (graph traversal)
+
+## For AI Assistants
+
+When working in this project:
+1. **SessionStart**: Working memories are auto-loaded via hook
+2. **UserPromptSubmit**: Relevant archive memories are auto-injected via keyword search
+3. **SessionEnd**: Access counts and heat are persisted
+
+Use `[[mem_id]]` syntax to reference memories. Create links between related memories to build the knowledge graph.
+"""
+
+
+def cmd_init(args):
+    """Initialize Meme integration in the current project directory."""
+    if not MEME_HOME.exists():
+        print("Meme is not set up yet. Run 'meme setup' first.")
+        return
+
+    project_name = Path.cwd().name
+    safe_name = re.sub(r"[^\w-]", "_", project_name).lower()
+
+    # 1. Create .claude/ directory
+    claude_dir = Path.cwd() / ".claude"
+    claude_dir.mkdir(exist_ok=True)
+
+    # Ensure .claude/.gitignore exists (ignore all except memory/)
+    gitignore = claude_dir / ".gitignore"
+    if not gitignore.exists():
+        gitignore.write_text("*\n", encoding="utf-8")
+
+    # 2. Create .claude/memory/ and symlinks
+    memory_dir = claude_dir / "memory"
+    memory_dir.mkdir(exist_ok=True)
+    ensure_symlink(memory_dir / "MEMORY.md", MEMORY_MD_PATH)
+    ensure_symlink(memory_dir / "working", WORKING_DIR)
+
+    # 3. Create/update CLAUDE.md
+    claude_md = Path.cwd() / "CLAUDE.md"
+    meme_section = CLAUDE_MD_TEMPLATE.format(project_safe_name=safe_name)
+
+    if claude_md.exists():
+        content = claude_md.read_text(encoding="utf-8")
+        if "# Meme — Project Memory System" in content:
+            print("  CLAUDE.md already has Meme section. Skipping.")
+        else:
+            content = content.rstrip() + "\n\n" + meme_section
+            claude_md.write_text(content, encoding="utf-8")
+            print("  Updated CLAUDE.md with Meme section.")
+    else:
+        claude_md.write_text(meme_section, encoding="utf-8")
+        print("  Created CLAUDE.md with Meme guide.")
+
+    # 4. Create project memory file
+    project_mem_path = ARCHIVE_DIR / "projects" / f"{safe_name}.md"
+    project_mem_path.parent.mkdir(parents=True, exist_ok=True)
+    if not project_mem_path.exists():
+        now = datetime.datetime.now().strftime("%Y-%m-%d")
+        meta = {
+            "id": f"mem_{datetime.datetime.now():%Y%m%d}_{safe_name}",
+            "type": "project",
+            "importance": 0.7,
+            "created": now,
+            "last_accessed": now,
+            "access_count": 0,
+            "tags": [safe_name],
+            "links": [],
+        }
+        body = f"# {project_name}\n\nProject memory for {project_name}.\n\n## Overview\n\n## Notes\n\n## Related\n"
+        save_memory(project_mem_path, meta, body)
+        print(f"  Created project memory: {project_mem_path}")
+    else:
+        print(f"  Project memory already exists: {project_mem_path}")
+
+    # 5. Register hooks (idempotent — safe to call even if already registered)
+    _register_hooks()
+
+    # 6. Rebuild MEMORY.md index
+    rebuild_memory_md()
+
+    print(f"\nMeme initialized for project '{project_name}'")
+    print("  Run 'meme --help' for available commands.")
+
+
+# ========================================
 # Command: uninstall
 # ========================================
 
@@ -2291,6 +2397,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--migrate", action="store_true", help="Also import from Claude Code")
     p.add_argument("--obsidian", type=str, help="Path to Obsidian vault for symlink")
     p.set_defaults(func=cmd_setup)
+
+    # init
+    p = sub.add_parser("init", help="Init Meme in the current project (CLAUDE.md + .claude/)")
+    p.set_defaults(func=cmd_init)
 
     # uninstall
     p = sub.add_parser("uninstall", help="Uninstall Meme")
