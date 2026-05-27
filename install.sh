@@ -7,9 +7,7 @@
 set -euo pipefail
 
 REPO_URL="${MEME_REPO:-https://github.com/hyooeewee/Meme}"
-RAW_URL="${MEME_RAW:-https://raw.githubusercontent.com/hyooeewee/Meme/main}"
 INSTALL_DIR="$HOME/.meme/bin"
-PKG_DIR="$HOME/.meme/pkg"
 
 # --- Colors ---
 RED='\033[0;31m'
@@ -24,7 +22,6 @@ error() { echo -e "${RED}[meme]${NC} $*" >&2; }
 # --- Check prerequisites ---
 PYTHON_CMD=""
 check_python() {
-    # Try specific versions first (Homebrew style), then generic python3
     for cmd in python3.12 python3.11 python3.10 python3 python; do
         if command -v "$cmd" &>/dev/null; then
             local ver
@@ -41,12 +38,8 @@ check_python() {
     return 1
 }
 
-check_uv() {
-    command -v uv &>/dev/null
-}
-
-check_git() {
-    command -v git &>/dev/null
+check_pip() {
+    "$PYTHON_CMD" -m pip --version &>/dev/null
 }
 
 # --- Main ---
@@ -63,67 +56,41 @@ main() {
     fi
     info "Python $($PYTHON_CMD -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")') found"
 
-    # Check/install uv
-    if ! check_uv; then
-        info "Installing uv (Python package manager)..."
-        curl -LsSf https://astral.sh/uv/install.sh | sh
-        export PATH="$HOME/.local/bin:$PATH"
-        if ! check_uv; then
-            error "Failed to install uv. Please install manually: https://docs.astral.sh/uv/"
-            exit 1
-        fi
+    # Check pip
+    if ! check_pip; then
+        error "pip is required but not found for $PYTHON_CMD."
+        echo "  Install with: $PYTHON_CMD -m ensurepip --upgrade"
+        exit 1
     fi
-    info "uv $(uv --version) found"
+    info "pip found"
 
-    # Create directories
-    mkdir -p "$INSTALL_DIR" "$PKG_DIR"
+    # Create install dir
+    mkdir -p "$INSTALL_DIR"
 
-    # Clone or update repo
-    if [[ -d "$PKG_DIR/.git" ]]; then
-        info "Updating existing Meme repo..."
-        git -C "$PKG_DIR" pull --ff-only 2>/dev/null || {
-            warn "Pull failed, re-cloning..."
-            rm -rf "$PKG_DIR"
-            git clone --depth 1 "$REPO_URL" "$PKG_DIR"
-        }
+    # Download and install from tarball
+    info "Downloading Meme..."
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    local tmp_tar
+    tmp_tar=$(mktemp)
+
+    if command -v curl &>/dev/null; then
+        curl -sSL "$REPO_URL/archive/refs/heads/main.tar.gz" -o "$tmp_tar"
     else
-        info "Cloning Meme repo..."
-        rm -rf "$PKG_DIR"
-        if check_git; then
-            git clone --depth 1 "$REPO_URL" "$PKG_DIR"
-        else
-            # Fallback: download as tarball
-            info "git not found, downloading tarball..."
-            local tmp_tar
-            tmp_tar=$(mktemp)
-            if command -v curl &>/dev/null; then
-                curl -sSL "$REPO_URL/archive/refs/heads/main.tar.gz" -o "$tmp_tar"
-            else
-                wget -qO "$tmp_tar" "$REPO_URL/archive/refs/heads/main.tar.gz"
-            fi
-            mkdir -p "$PKG_DIR"
-            tar xzf "$tmp_tar" --strip-components=1 -C "$PKG_DIR"
-            rm -f "$tmp_tar"
-        fi
+        wget -qO "$tmp_tar" "$REPO_URL/archive/refs/heads/main.tar.gz"
     fi
 
-    # Create launcher symlink
-    ln -sf "$PKG_DIR/meme" "$INSTALL_DIR/meme"
-    chmod +x "$PKG_DIR/meme"
+    tar xzf "$tmp_tar" --strip-components=1 -C "$tmp_dir"
+    rm -f "$tmp_tar"
 
-    # Install hook scripts
-    info "Installing hook scripts..."
-    for hook in session_start.sh query.sh session_end.sh; do
-        local src="$PKG_DIR/hooks/$hook"
-        local dest="$INSTALL_DIR/meme-$(echo "$hook" | tr '_' '-')"
-        if [[ -f "$src" ]]; then
-            ln -sf "$src" "$dest"
-            chmod +x "$src"
-        fi
-    done
+    info "Installing package..."
+    "$PYTHON_CMD" -m pip install "$tmp_dir"
+    rm -rf "$tmp_dir"
 
-    # Ensure PATH is available in current shell
-    export PATH="$INSTALL_DIR:$PATH"
+    # Ensure pip-installed bin dir is on PATH
+    local pip_bin
+    pip_bin="$($PYTHON_CMD -m site --user-base)/bin"
+    export PATH="$pip_bin:$PATH"
 
     # Add to shell rc file if not already present
     local shell_rc=""
@@ -136,19 +103,24 @@ main() {
 
     local added_to_rc=false
     if [[ -n "$shell_rc" ]]; then
-        local path_line='export PATH="$HOME/.meme/bin:$PATH"'
+        # Check both .meme/bin and pip user bin
         if ! grep -qF '.meme/bin' "$shell_rc" 2>/dev/null; then
             echo "" >> "$shell_rc"
             echo "# meme-memory-system" >> "$shell_rc"
-            echo "$path_line" >> "$shell_rc"
+            echo 'export PATH="$HOME/.meme/bin:$PATH"' >> "$shell_rc"
             info "Added $INSTALL_DIR to PATH in $shell_rc"
+            added_to_rc=true
+        fi
+        if ! grep -qF "$pip_bin" "$shell_rc" 2>/dev/null; then
+            echo "export PATH=\"$pip_bin:\$PATH\"" >> "$shell_rc"
+            info "Added $pip_bin to PATH in $shell_rc"
             added_to_rc=true
         fi
     fi
 
-    # Run install
+    # Run setup
     info "Running meme setup..."
-    "$INSTALL_DIR/meme" setup ${1+"$@"}
+    meme setup ${1+"$@"}
 
     echo ""
     info "Installation complete!"

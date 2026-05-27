@@ -26,16 +26,13 @@
 curl -sSL https://raw.githubusercontent.com/hyooeewee/Meme/main/install.sh | bash
 ```
 
-自动处理 uv 安装、仓库克隆、PATH 配置。
+自动处理 pip 安装、PATH 配置。
 
-### 方式 2：uvx / pipx
+### 方式 2：pip 安装
 
 ```bash
-# uv（推荐）
-uvx memectl install
-
-# pipx
-pipx run memectl install
+pip install memectl
+meme setup
 ```
 
 ### 方式 3：从源码安装（开发）
@@ -43,7 +40,8 @@ pipx run memectl install
 ```bash
 git clone https://github.com/hyooeewee/Meme.git
 cd Meme
-uv run ./meme setup
+pip install -e .
+meme setup
 ```
 
 ### 安装选项
