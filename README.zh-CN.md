@@ -13,36 +13,59 @@
 - **Obsidian 集成**：通过 symlink 在 Obsidian 中可视化记忆图谱
 - **Claude Code 集成**：通过 hooks 自动注入记忆上下文
 
-## 安装
-
-### 前置要求
+## 前置要求
 
 - Python 3.10+
-- [uv](https://docs.astral.sh/uv/)（Python 包管理器）
-- Git
+- macOS / Linux
+- `uv`（推荐）或 `pip`
 
-### 从 GitHub 安装
+## 安装
+
+### 方式 1：一键安装
 
 ```bash
-git clone https://github.com/<your-username>/Meme.git
-cd Meme
-./meme setup
+curl -sSL https://raw.githubusercontent.com/hyooeewee/Meme/main/install.sh | bash
 ```
+
+### 方式 2：uv（推荐）
+
+```bash
+uv tool install memectl
+meme setup
+```
+
+### 方式 3：pip
+
+```bash
+pip install memectl
+meme setup
+```
+
+### 方式 4：源码安装（开发）
+
+```bash
+git clone https://github.com/hyooeewee/Meme.git
+cd Meme
+uv pip install -e .
+meme setup --dev
+```
+
+`--dev` 标志会用符号链接替代复制，源码修改立即生效。
 
 ### 安装选项
 
 ```bash
 # 基础安装
-./meme setup
+meme setup
 
 # 安装 + 从现有 Claude Code 记忆迁移
-./meme setup --migrate
+meme setup --migrate
 
 # 安装 + 设置 Obsidian 集成
-./meme setup --obsidian ~/Softwares/Obsidian/Meme/
+meme setup --obsidian ~/Softwares/Obsidian/Meme/
 
 # 完整安装
-./meme setup --migrate --obsidian ~/Softwares/Obsidian/Meme/
+meme setup --migrate --obsidian ~/Softwares/Obsidian/Meme/
 ```
 
 ### 安装后配置
@@ -115,6 +138,7 @@ meme learn --file ./notes.md
 - `--tier TIER` — 按层级过滤：working / archive / cold
 - `--tag TAG` — 按标签过滤
 - `--sort ORDER` — 排序：importance / recent / heat
+- `--format FORMAT` — 输出格式：text / json
 
 **forget 选项：**
 - `--hard` — 从文件系统彻底删除
@@ -245,6 +269,44 @@ meme add "API key: sk-xxx" --sensitive --type knowledge
 
 # 搜索时只显示摘要，解密需要 Keychain 授权
 meme search "api key"
+```
+
+## 开发
+
+```bash
+# 开发模式安装（符号链接而非复制）
+uv pip install -e .
+meme setup --dev
+
+# 运行测试
+uv run pytest tests/ -v
+
+# 带覆盖率运行
+uv run pytest tests/ -v --cov=src/meme --cov-report=term-missing
+```
+
+## 目录结构
+
+```
+~/.meme/
+├── MEMORY.md                    # 主索引
+├── working/                     # 第一层：每次加载
+├── archive/                     # 第二层：图遍历加载
+│   ├── projects/
+│   ├── feedback/
+│   └── knowledge/
+├── cold/                        # 第三层：仅搜索
+├── vault/                       # 加密记忆
+├── backups/                     # tar.gz 备份
+├── meta/
+│   ├── index.json               # 全量索引
+│   ├── graph.json               # 邻接表
+│   └── session_heat.json        # 会话热度（临时文件）
+└── bin/
+    ├── meme                     # CLI 入口
+    ├── query.sh                 # UserPromptSubmit hook
+    ├── session_start.sh         # SessionStart hook
+    └── session_end.sh           # SessionEnd hook
 ```
 
 ## 卸载

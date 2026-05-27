@@ -1,290 +1,296 @@
-# Meme — 中心化记忆系统
+# Meme — Centralized Memory System
 
-一个基于知识图谱的个人记忆管理系统，为 AI 助手提供持久化、分层、可检索的记忆能力。
+A personal memory management system built on knowledge graphs, providing persistent, tiered, and retrievable memory for AI assistants.
 
-## 特性
+## Features
 
-- **三层记忆模型**：Working（每次加载）→ Archive（图遍历检索）→ Cold（BM25 搜索可命中，可回温）
-- **知识图谱**：记忆之间通过 `[[link]]` 互相引用，支持 BFS 图遍历检索
-- **重要性衰减**：长期未访问的记忆自动降级，频繁使用的自动升级
-- **错误纠正**：记住 CLI 命令变更等操作性纠错，避免重复犯错
-- **知识摄入**：从 URL、文档、会话中学习并内化为记忆
-- **加密保险库**：敏感记忆通过 macOS Keychain + AES-256 加密存储
-- **Obsidian 兼容**：`.md` 文件可直接在 Obsidian 中打开，图谱视图自动生效
-- **Claude Code 集成**：通过 hooks 自动注入记忆上下文
+- **Three-tier memory model**: Working (loaded every session) → Archive (graph-traversal retrieval) → Cold (BM25 searchable, warmable)
+- **Knowledge graph**: Memories reference each other via `[[link]]` syntax; BFS traversal retrieval
+- **Importance decay**: Long-unaccessed memories auto-demote; frequently used ones auto-promote
+- **Error correction**: Remember operational fixes (CLI command changes, etc.) to avoid repeated mistakes
+- **Learning & ingestion**: Learn from URLs, documents, and conversations
+- **Encrypted vault**: Sensitive memories stored with AES-256 encryption via macOS Keychain
+- **Obsidian compatible**: Standard `.md` files work in Obsidian with graph view and backlinks
+- **Claude Code integration**: Auto-injects memory context via hooks
 
-## 安装
-
-### 前置要求
+## Requirements
 
 - Python 3.10+
 - macOS / Linux
+- `uv` (recommended) or `pip`
 
-### 方式 1：一键安装（推荐）
+## Installation
+
+### Method 1: One-line install
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/hyooeewee/Meme/main/install.sh | bash
 ```
 
-自动处理 pip 安装、PATH 配置。
+### Method 2: uv (recommended)
 
-### 方式 2：pip 安装
+```bash
+uv tool install memectl
+meme setup
+```
+
+### Method 3: pip
 
 ```bash
 pip install memectl
 meme setup
 ```
 
-### 方式 3：从源码安装（开发）
+### Method 4: From source (development)
 
 ```bash
 git clone https://github.com/hyooeewee/Meme.git
 cd Meme
-pip install -e .
-meme setup
+uv pip install -e .
+meme setup --dev
 ```
 
-### 安装选项
+The `--dev` flag symlinks hooks and CLI scripts instead of copying, so source changes take effect immediately.
+
+### Setup options
 
 ```bash
-# 基础安装
+# Basic setup
 meme setup
 
-# 安装 + 从现有 Claude Code 记忆迁移
+# Setup + migrate existing Claude Code memories
 meme setup --migrate
 ```
 
-### 验证
+### Verify
 
 ```bash
 meme version
 meme doctor
 ```
 
-## 快速开始
+## Quick Start
 
 ```bash
-# 添加记忆
-meme add "使用 uv 管理 Python 依赖，不使用 pip" --type feedback --importance 0.8
+# Add a memory
+meme add "Use uv for Python dependencies, not pip" --type feedback --importance 0.8
 
-# 搜索记忆
-meme search "python 依赖"
+# Search memories
+meme search "python dependencies"
 
-# 列出所有记忆
+# List all memories
 meme list
 
-# 按层级列出
+# List by tier
 meme list --tier working
 
-# 图遍历检索（从某个记忆出发，沿关联扩展）
+# Graph traversal (expand from a memory via links)
 meme query mem_xxx
 
-# 从 URL 学习
+# Learn from URL
 meme learn https://docs.example.com/guide
 
-# 从本地文件学习
+# Learn from file
 meme learn --file ./notes.md
 ```
 
-## 用户流程
+## Command Reference
 
-```text
- ┌─────────────┐     ┌──────────────┐     ┌─────────────────┐
- │  Install    │────▶│  meme setup  │────▶│ ~/.meme/ ready  │
- └─────────────┘     └──────────────┘     └─────────────────┘
-                                                   │
-                          ┌────────────────────────┘
-                          ▼
-                   ┌──────────────┐
-                   │ Enter project│
-                   └──────────────┘
-                          │
-            ┌─────────────┼─────────────┐
-            ▼             ▼             ▼
-     ┌──────────┐  ┌──────────┐  ┌────────────┐
-     │meme init │  │ .claude/ │  │ Use global │
-     │ (new)     │  │ exists   │  │ commands   │
-     └──────────┘  └──────────┘  └────────────┘
-            │             │             │
-            └─────────────┴─────────────┘
-                          ▼
-              ┌──────────────────────┐
-              │   Daily meme usage    │
-              └──────────────────────┘
-                          │
-        ┌─────────┬───────┼───────┬─────────┐
-        ▼         ▼       ▼       ▼         ▼
-   ┌────────┐ ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐
-   │  add   │ │search│ │query │ │learn │ │decay │
-   │ add    │ │search│ │graph │ │learn │ │decay │
-   └────────┘ └──────┘ └──────┘ └──────┘ └──────┘
-        │         │       │       │         │
-        └─────────┴───────┴───────┴─────────┘
-                          ▼
-              ┌──────────────────────┐
-              │ AI auto-injects memory│
-              │  (via Claude hooks)   │
-              └──────────────────────┘
-```
+### Memory management
 
-## 命令参考
+| Command | Description |
+|---------|-------------|
+| `meme add "content" [options]` | Add a new memory |
+| `meme list [options]` | List memories |
+| `meme search "keyword"` | BM25 keyword search |
+| `meme query mem_id` | Graph traversal retrieval |
+| `meme edit mem_id` | Edit memory content and metadata |
+| `meme delete mem_id` | Delete a memory |
+| `meme forget mem_id [options]` | Forget a memory (soft / hard / purge) |
 
-### 记忆管理
+**add options:**
+- `--type TYPE` — feedback / project / user / reference / knowledge / correction
+- `--importance N` — 0.0~1.0 (default 0.5)
+- `--tags TAG1,TAG2` — Tags
+- `--links mem_a,mem_b` — Link to other memories
+- `--sensitive` — Store in encrypted vault
 
-| 命令 | 说明 |
-|------|------|
-| `meme add "内容" [选项]` | 添加新记忆 |
-| `meme list [选项]` | 列出记忆 |
-| `meme search "关键词"` | BM25 关键词搜索 |
-| `meme query mem_id` | 图遍历检索（核心命令） |
-| `meme edit mem_id` | 编辑记忆内容和元数据 |
-| `meme delete mem_id` | 删除记忆 |
-| `meme forget mem_id [选项]` | 遗忘记忆（软/硬/彻底） |
+**list options:**
+- `--tier TIER` — Filter by tier: working / archive / cold
+- `--tag TAG` — Filter by tag
+- `--sort ORDER` — Sort by: importance / recent / heat
+- `--format FORMAT` — Output format: text / json
 
-**add 选项：**
-- `--type TYPE` — 类型：feedback / project / user / reference / knowledge / correction
-- `--importance N` — 重要性 0.0~1.0（默认 0.5）
-- `--tags TAG1,TAG2` — 标签
-- `--links mem_a,mem_b` — 关联记忆
-- `--sensitive` — 加密存储到 vault
+**forget options:**
+- `--hard` — Delete from filesystem
+- `--hard --purge` — Delete + scrub from git history
 
-**list 选项：**
-- `--tier TIER` — 按层级过滤：working / archive / cold
-- `--tag TAG` — 按标签过滤
-- `--sort ORDER` — 排序：importance / recent / heat
+### Learning & ingestion
 
-**forget 选项：**
-- `--hard` — 从文件系统彻底删除
-- `--hard --purge` — 彻底删除 + 清理 git history
+| Command | Description |
+|---------|-------------|
+| `meme learn <url>` | Fetch and distill content from URL |
+| `meme learn --file <path>` | Extract and distill from local file |
 
-### 学习与摄入
+### Lifecycle
 
-| 命令 | 说明 |
-|------|------|
-| `meme learn <url>` | 从 URL 抓取内容，提炼为记忆 |
-| `meme learn --file <path>` | 从本地文件提取，提炼为记忆 |
+| Command | Description |
+|---------|-------------|
+| `meme decay [--dry-run]` | Run importance decay scan |
+| `meme promote mem_id` | Manually promote to working tier |
+| `meme demote mem_id` | Manually demote |
+| `meme warm mem_id` | Warm a cold memory back to archive |
+| `meme link mem_a mem_b` | Create a bidirectional link |
+| `meme suggest-links` | Suggest new links based on usage patterns |
+| `meme heat` | Show current session heat |
 
-### 生命周期
+### Migration
 
-| 命令 | 说明 |
-|------|------|
-| `meme decay [--dry-run]` | 执行重要性衰减扫描 |
-| `meme promote mem_id` | 手动提升到 working 层 |
-| `meme demote mem_id` | 手动降级 |
-| `meme warm mem_id` | 将 cold 记忆回温到 archive |
-| `meme link mem_a mem_b` | 创建记忆关联 |
-| `meme suggest-links` | 基于使用模式建议新关联 |
-| `meme heat` | 显示当前会话热度 |
+| Command | Description |
+|---------|-------------|
+| `meme import --from claude` | Migrate from Claude Code project memories |
+| `meme import --from claude-global` | Migrate from Claude Code global config |
+| `meme import --from codex [--path]` | Migrate from Codex |
+| `meme sync --incremental` | Incremental sync |
 
-### 迁移
+### Maintenance
 
-| 命令 | 说明 |
-|------|------|
-| `meme import --from claude` | 从 Claude Code 项目记忆迁移 |
-| `meme import --from claude-global` | 从 Claude Code 全局配置迁移 |
-| `meme import --from codex [--path]` | 从 Codex 迁移 |
-| `meme sync --incremental` | 增量同步（检测源文件变化） |
+| Command | Description |
+|---------|-------------|
+| `meme doctor [--fix]` | Health check + auto-fix |
+| `meme backup` | Manual backup |
+| `meme gc` | Clean old backups |
+| `meme reindex` | Rebuild index.json + graph.json |
+| `meme stats` | Statistics |
+| `meme export [--format json\|md]` | Export all memories |
 
-### 维护
+### System
 
-| 命令 | 说明 |
-|------|------|
-| `meme doctor [--fix]` | 健康检查 + 自动修复 |
-| `meme backup` | 手动备份 |
-| `meme gc` | 清理旧备份 |
-| `meme reindex` | 重建 index.json + graph.json |
-| `meme stats` | 统计信息 |
-| `meme export [--format json\|md]` | 导出所有记忆 |
+| Command | Description |
+|---------|-------------|
+| `meme version` | Show version + check for updates |
+| `meme upgrade [--check] [--force]` | Self-upgrade |
+| `meme changelog` | View version history |
+| `meme uninstall [--keep-data]` | Uninstall Meme |
 
-### 系统
+## Memory Types
 
-| 命令 | 说明 |
-|------|------|
-| `meme version` | 显示当前版本 + 检测最新版本 |
-| `meme upgrade [--check] [--force]` | 自我升级 |
-| `meme changelog` | 查看版本变更历史 |
-| `meme uninstall [--keep-data]` | 卸载 Meme |
+| Type | Purpose | Default importance |
+|------|---------|-------------------|
+| `feedback` | Corrections and preferences | 0.6 |
+| `project` | Project context and status | 0.5 |
+| `user` | User identity, background, preferences | 0.8 |
+| `reference` | External resource pointers | 0.4 |
+| `knowledge` | Learned from docs/URLs | 0.5 |
+| `correction` | CLI changes and operational fixes | 0.9 |
 
-## 记忆类型
-
-| 类型 | 用途 | 默认重要性 |
-|------|------|-----------|
-| `feedback` | 用户对 AI 行为的纠正和偏好 | 0.6 |
-| `project` | 项目相关的上下文和状态 | 0.5 |
-| `user` | 用户身份、背景、偏好 | 0.8 |
-| `reference` | 外部资源的指针和摘要 | 0.4 |
-| `knowledge` | 从文档/URL 学习的知识 | 0.5 |
-| `correction` | CLI 命令变更等操作性纠错 | 0.9 |
-
-## 三层记忆模型
+## Three-tier Memory Model
 
 ```
 ┌─────────────────────────────────────────────────┐
 │  Working (importance >= 0.8)                     │
-│  每次会话自动加载，token 预算 2000               │
+│  Auto-loaded per session, token budget 2000      │
 ├─────────────────────────────────────────────────┤
 │  Archive (0.2 <= importance < 0.8)               │
-│  图遍历检索时按距离衰减加载                      │
+│  Loaded via graph traversal with distance decay  │
 │  load_weight = importance × (0.4 ^ distance)     │
 ├─────────────────────────────────────────────────┤
 │  Cold (importance < 0.2)                         │
-│  BM25 搜索可命中，连续 3 次命中自动回温          │
+│  BM25 searchable; auto-warms after 3 hits        │
 └─────────────────────────────────────────────────┘
 ```
 
-## 图遍历检索
+## Graph Traversal Retrieval
 
-查询命中一个记忆节点时，沿知识图谱 BFS 扩展：
+When a query hits a memory node, BFS expands along the knowledge graph:
 
 ```
-查询 "docker 权限问题"
+Query: "docker permission issue"
   │
-  ├─ 命中: feedback_docker_permission.md (distance: 0) → 全量加载
+  ├─ Hit: feedback_docker_permission.md (distance: 0) → full load
   │
-  ├─ 1 级连接 (distance: 1) → 加载摘要
+  ├─ 1-degree links (distance: 1) → summary load
   │   ├─ install_permission.md
   │   └─ project_ecoctrl.md
   │
-  └─ 2 级连接 (distance: 2) → 仅标签
+  └─ 2-degree links (distance: 2) → title only
       └─ knowledge_docker.md
 ```
 
-## Obsidian 兼容
+## Obsidian Compatibility
 
-记忆文件为标准 `.md` 格式，支持 Obsidian 的 `[[wiki-link]]` 语法。直接在 Obsidian 中打开 `~/.meme/` 目录即可使用图谱视图和反向链接。
+Memories are standard `.md` files with YAML frontmatter. Obsidian's `[[wiki-link]]` syntax is natively supported. Open `~/.meme/` as an Obsidian vault to browse the graph view and backlinks.
 
-## Claude Code 集成
+## Claude Code Integration
 
-`meme setup` 自动注册三个 hooks：
+`meme setup` auto-registers three hooks in `~/.claude/settings.json`:
 
-| Hook | 触发时机 | 行为 |
-|------|----------|------|
-| SessionStart | 会话开始 | 加载 working 记忆 + 纠正记忆 |
-| UserPromptSubmit | 用户输入 | 关键词搜索 → 图遍历 → 注入相关记忆 |
-| SessionEnd | 会话结束 | 写回 access_count，自动升降级 |
+| Hook | Trigger | Behavior |
+|------|---------|----------|
+| SessionStart | Session start | Load working memories + corrections |
+| UserPromptSubmit | User input | Keyword search → graph traversal → inject context |
+| SessionEnd | Session end | Persist access counts, auto promote/demote |
 
-## 加密保险库
+## Encrypted Vault
 
-敏感记忆（API key、密码等）使用 macOS Keychain + AES-256 加密：
+Sensitive memories (API keys, passwords) are encrypted with AES-256 via macOS Keychain:
 
 ```bash
-# 添加加密记忆
+# Add encrypted memory
 meme add "API key: sk-xxx" --sensitive --type knowledge
 
-# 搜索时只显示摘要，解密需要 Keychain 授权
+# Search shows summary only; decryption requires Keychain authorization
 meme search "api key"
 ```
 
-## 卸载
+## Development
 
 ```bash
-# 卸载但保留数据
+# Install in dev mode (symlinks instead of copies)
+uv pip install -e .
+meme setup --dev
+
+# Run tests
+uv run pytest tests/ -v
+
+# Run with coverage
+uv run pytest tests/ -v --cov=src/meme --cov-report=term-missing
+```
+
+## Directory Structure
+
+```
+~/.meme/
+├── MEMORY.md                    # Main index
+├── working/                     # Tier 1: always loaded
+├── archive/                     # Tier 2: graph-traversal loaded
+│   ├── projects/
+│   ├── feedback/
+│   └── knowledge/
+├── cold/                        # Tier 3: search-only
+├── vault/                       # Encrypted memories
+├── backups/                     # tar.gz backups
+├── meta/
+│   ├── index.json               # Full index
+│   ├── graph.json               # Adjacency list
+│   └── session_heat.json        # Session heat (temporary)
+└── bin/
+    ├── meme                     # CLI entry
+    ├── query.sh                 # UserPromptSubmit hook
+    ├── session_start.sh         # SessionStart hook
+    └── session_end.sh           # SessionEnd hook
+```
+
+## Uninstall
+
+```bash
+# Uninstall but keep data
 meme uninstall --keep-data
 
-# 完全卸载
+# Full uninstall
 meme uninstall
 ```
 
-## 许可证
+## License
 
 MIT
