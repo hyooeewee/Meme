@@ -111,8 +111,16 @@ class MemoryMeta:
     @classmethod
     def from_dict(cls, data: dict) -> "MemoryMeta":
         """Build from a dict, ignoring unknown keys."""
+        import datetime as _dt
         known = {f.name for f in cls.__dataclass_fields__.values()}
-        filtered = {k: v for k, v in data.items() if k in known}
+        filtered = {}
+        for k, v in data.items():
+            if k not in known:
+                continue
+            # YAML parses ISO dates into date/datetime objects; coerce back to str
+            if isinstance(v, (_dt.date, _dt.datetime)):
+                v = v.isoformat()
+            filtered[k] = v
         return cls(**filtered)
 
     def to_dict(self) -> dict:

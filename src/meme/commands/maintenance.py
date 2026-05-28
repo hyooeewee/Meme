@@ -102,7 +102,7 @@ def cmd_doctor(args):
             total_tokens += count_tokens(body)
         except Exception as e:
             from meme.log import get_logger
-            get_logger('meme').warning(f'Command error in {os.path.basename(path)}: {e}')
+            get_logger('meme').warning(f'Command error in {os.path.basename(p)}: {e}')
             continue
     if total_tokens > TOKEN_BUDGET_WORKING:
         issues.append(("token_overbudget", total_tokens, TOKEN_BUDGET_WORKING))
@@ -201,7 +201,7 @@ def cmd_reindex(args):
                 graph[mem_id] = links
         except Exception as e:
             from meme.log import get_logger
-            get_logger('meme').warning(f'Command error in {os.path.basename(path)}: {e}')
+            get_logger('meme').warning(f'Command error in {os.path.basename(p)}: {e}')
             continue
 
     save_index(index)
@@ -235,7 +235,7 @@ def cmd_stats(args):
             total_tokens += count_tokens(body)
         except Exception as e:
             from meme.log import get_logger
-            get_logger('meme').warning(f'Command error in {os.path.basename(path)}: {e}')
+            get_logger('meme').warning(f'Command error in {os.path.basename(p)}: {e}')
             continue
 
     graph = load_graph()
@@ -271,7 +271,7 @@ def cmd_export(args):
             memories.append({"meta": meta, "body": body})
         except Exception as e:
             from meme.log import get_logger
-            get_logger('meme').warning(f'Command error in {os.path.basename(path)}: {e}')
+            get_logger('meme').warning(f'Command error in {os.path.basename(p)}: {e}')
             continue
 
     if fmt == "json":

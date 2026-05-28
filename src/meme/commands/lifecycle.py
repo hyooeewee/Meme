@@ -51,7 +51,7 @@ def cmd_decay(args):
             if meta.get("forgotten"):
                 continue
 
-            last = meta.get("last_accessed", meta.get("created", ""))
+            last = meta.get("last_accessed") or meta.get("created") or ""
             if not last:
                 continue
             last_date = datetime.date.fromisoformat(last)
@@ -95,7 +95,7 @@ def cmd_decay(args):
 
         except Exception as e:
             from meme.log import get_logger
-            get_logger('meme').warning(f'Command error in {os.path.basename(path)}: {e}')
+            get_logger('meme').warning(f'Command error in {os.path.basename(p)}: {e}')
             continue
 
     if not dry_run and decayed:
