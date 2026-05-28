@@ -12,6 +12,7 @@ from meme.constants import (
     FRONTMATTER_KEYS, SUBDIRS,
     TIER_WORKING_THRESHOLD, TIER_ARCHIVE_THRESHOLD,
     TOKEN_BUDGET_WORKING, TOKEN_BUDGET_HOOK,
+    DECAY_LOG_PATH,
 )
 from meme.config import load_config, save_config, get_config_value, set_config_value
 from meme.utils import (
