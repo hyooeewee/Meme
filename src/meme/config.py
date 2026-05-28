@@ -1,8 +1,5 @@
 """Meme configuration management."""
-try:
-    import tomllib
-except ModuleNotFoundError:
-    import tomli as tomllib
+import tomllib
 
 from meme.constants import CONFIG_PATH
 

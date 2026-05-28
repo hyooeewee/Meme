@@ -15,7 +15,7 @@
 
 ## 前置要求
 
-- Python 3.10+
+- Python 3.11+
 - macOS / Linux
 - `uv`（推荐）或 `pip`
 

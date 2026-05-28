@@ -3,10 +3,7 @@
 import sys
 from pathlib import Path
 
-try:
-    import tomllib
-except ModuleNotFoundError:  # pragma: no cover
-    import tomli as tomllib  # type: ignore[no-redef]
+import tomllib
 
 # Prefer pyproject.toml (source checkout) so edits are picked up immediately.
 # Fall back to importlib.metadata when installed as a wheel.

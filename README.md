@@ -15,7 +15,7 @@ A personal memory management system built on knowledge graphs, providing persist
 
 ## Requirements
 
-- Python 3.10+
+- Python 3.11+
 - macOS / Linux
 - `uv` (recommended) or `pip`
 
