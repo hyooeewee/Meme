@@ -512,9 +512,6 @@ def rebuild_memory_md():
 # Index & Graph helpers
 # ========================================
 
-# Index & Graph helpers
-# ========================================
-
 def _update_index_entry(mem_id: str, meta: dict, path: Path, index: dict | None = None):
     """Update a single entry in the index."""
     if index is None:

@@ -17,17 +17,41 @@ from meme.commands.maintenance import (
 )
 from meme.commands.system import cmd_version, cmd_upgrade, cmd_changelog, cmd_auth, cmd_run, cmd_heat
 
+
+_EPILOG = """\n\
+examples:
+  meme add "Use uv for Python deps" --type feedback --importance 0.8 --tags python,uv
+  meme search "docker permission"
+  meme query mem_xxx
+  meme config --set dream.enabled=false
+  meme daydream --dry-run
+  meme doctor --fix
+  meme upgrade --check
+
+command groups:
+  Memory Management    add, list, show, search, query, edit, delete, forget
+  Ingestion            learn, import
+  Lifecycle            decay, promote, demote, warm, link, suggest-links, daydream, dream
+  Maintenance          doctor, backup, gc, reindex, stats, export, heat
+  Setup                setup, init, uninstall
+  System               version, upgrade, changelog, auth, run, config
+
+Use 'meme <command> --help' for detailed usage of a command."""
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="meme",
         description="Meme — A centralized, tiered memory system with knowledge graph.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=_EPILOG,
     )
     parser.add_argument(
         "--version",
         action="version",
         version=f"%(prog)s {CURRENT_VERSION}",
     )
-    sub = parser.add_subparsers(dest="command")
+    sub = parser.add_subparsers(dest="command", title="commands", metavar="COMMAND")
 
     # setup
     p = sub.add_parser("setup", help="Set up the Meme system")
@@ -51,31 +75,34 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("add", help="Add a new memory")
     p.add_argument("content", help="Memory content")
     p.add_argument("--type", "-t", default="feedback",
-                   choices=["feedback", "project", "user", "reference", "knowledge", "correction"])
-    p.add_argument("--importance", "-i", type=float, default=0.6)
-    p.add_argument("--tags", default="")
-    p.add_argument("--links", default="")
-    p.add_argument("--slug", default="")
-    p.add_argument("--sensitive", action="store_true")
-    p.add_argument("--source-url", default=None)
-    p.add_argument("--source-file", default=None)
-    p.add_argument("--corrects", default=None)
-    p.add_argument("--scope", default=None)
-    p.add_argument("--wrong-pattern", default=None)
-    p.add_argument("--correct-pattern", default=None)
+                   choices=["feedback", "project", "user", "reference", "knowledge", "correction"],
+                   help="Memory type (default: feedback)")
+    p.add_argument("--importance", "-i", type=float, default=0.6,
+                   help="Importance 0.0~1.0 (default: 0.6)")
+    p.add_argument("--tags", default="", help="Comma-separated tags")
+    p.add_argument("--links", default="", help="Comma-linked memory IDs")
+    p.add_argument("--slug", default="", help="URL-friendly slug for the ID")
+    p.add_argument("--sensitive", action="store_true", help="Encrypt and store in vault")
+    p.add_argument("--source-url", default=None, help="Source URL")
+    p.add_argument("--source-file", default=None, help="Source file path")
+    p.add_argument("--corrects", default=None, help="ID of memory this corrects")
+    p.add_argument("--scope", default=None, help="Correction scope (e.g. project name)")
+    p.add_argument("--wrong-pattern", default=None, help="Pattern that was wrong")
+    p.add_argument("--correct-pattern", default=None, help="Pattern that is correct")
     p.set_defaults(func=cmd_add)
 
     # list
     p = sub.add_parser("list", help="List memories")
-    p.add_argument("--tier", choices=["working", "archive", "cold"])
-    p.add_argument("--tag", default=None)
-    p.add_argument("--sort", default="importance", choices=["importance", "recent", "heat"])
-    p.add_argument("--forgotten", action="store_true")
+    p.add_argument("--tier", choices=["working", "archive", "cold"],
+                   help="Filter by tier")
+    p.add_argument("--tag", default=None, help="Filter by tag")
+    p.add_argument("--sort", default="importance", choices=["importance", "recent", "heat"],
+                   help="Sort order (default: importance)")
+    p.add_argument("--forgotten", action="store_true", help="Include forgotten memories")
     p.add_argument("--format", default="text", choices=["text", "json"],
                    help="Output format (default: text)")
     p.set_defaults(func=cmd_list)
 
-    # search
     # show
     p = sub.add_parser("show", help="Show a memory's full content")
     p.add_argument("id", help="Memory ID")
@@ -96,25 +123,25 @@ def build_parser() -> argparse.ArgumentParser:
     # edit
     p = sub.add_parser("edit", help="Edit a memory")
     p.add_argument("id", help="Memory ID")
-    p.add_argument("--content", default=None)
-    p.add_argument("--importance", type=float, default=None)
-    p.add_argument("--type", default=None)
-    p.add_argument("--tags", default=None)
-    p.add_argument("--add-link", default=None)
+    p.add_argument("--content", default=None, help="New content")
+    p.add_argument("--importance", type=float, default=None, help="New importance")
+    p.add_argument("--type", default=None, help="New type")
+    p.add_argument("--tags", default=None, help="Replace tags (comma-separated)")
+    p.add_argument("--add-link", default=None, help="Add a link to another memory ID")
     p.set_defaults(func=cmd_edit)
 
     # delete
     p = sub.add_parser("delete", help="Delete a memory")
     p.add_argument("id", help="Memory ID")
-    p.add_argument("--force", "-f", action="store_true")
+    p.add_argument("--force", "-f", action="store_true", help="Skip confirmation")
     p.set_defaults(func=cmd_delete)
 
     # forget
     p = sub.add_parser("forget", help="Forget a memory")
     p.add_argument("id", help="Memory ID")
-    p.add_argument("--hard", action="store_true", help="Hard delete")
+    p.add_argument("--hard", action="store_true", help="Hard delete from filesystem")
     p.add_argument("--purge", action="store_true", help="Purge from git history")
-    p.add_argument("--reason", default=None)
+    p.add_argument("--reason", default=None, help="Reason for forgetting")
     p.set_defaults(func=cmd_forget)
 
     # learn
@@ -122,20 +149,21 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("url", nargs="?", default=None, help="URL to learn from")
     p.add_argument("--url", dest="url_flag", default=None, help="URL to learn from (alternative)")
     p.add_argument("--file", default=None, help="Local file to learn from")
-    p.add_argument("--slug", default="")
-    p.add_argument("--importance", type=float, default=0.5)
-    p.add_argument("--tags", default="")
+    p.add_argument("--slug", default="", help="URL-friendly slug")
+    p.add_argument("--importance", type=float, default=0.5, help="Importance (default: 0.5)")
+    p.add_argument("--tags", default="", help="Comma-separated tags")
     p.set_defaults(func=cmd_learn)
 
     # import
     p = sub.add_parser("import", help="Import memories from external sources")
-    p.add_argument("source", nargs="+", choices=["claude", "claude-global", "codex"])
+    p.add_argument("source", nargs="+", choices=["claude", "claude-global", "codex"],
+                   help="Source to import from")
     p.add_argument("--path", default=None, help="Codex workspace path")
     p.set_defaults(func=cmd_import)
 
     # decay
     p = sub.add_parser("decay", help="Run importance decay scan")
-    p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--dry-run", action="store_true", help="Preview without applying changes")
     p.set_defaults(func=cmd_decay)
 
     # promote
@@ -146,7 +174,7 @@ def build_parser() -> argparse.ArgumentParser:
     # demote
     p = sub.add_parser("demote", help="Demote a memory")
     p.add_argument("id", help="Memory ID")
-    p.add_argument("--importance", type=float, default=None)
+    p.add_argument("--importance", type=float, default=None, help="Target importance")
     p.set_defaults(func=cmd_demote)
 
     # warm
@@ -210,8 +238,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     # export
     p = sub.add_parser("export", help="Export all memories")
-    p.add_argument("--format", default="json", choices=["json", "md"])
-    p.add_argument("--output", "-o", default=None)
+    p.add_argument("--format", default="json", choices=["json", "md"],
+                   help="Export format (default: json)")
+    p.add_argument("--output", "-o", default=None, help="Output file path")
     p.set_defaults(func=cmd_export)
 
     # heat
@@ -240,8 +269,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     # upgrade
     p = sub.add_parser("upgrade", help="Upgrade Meme")
-    p.add_argument("--check", action="store_true")
-    p.add_argument("--force", action="store_true")
+    p.add_argument("--check", action="store_true", help="Check for updates only")
+    p.add_argument("--force", action="store_true", help="Force reinstall current version")
     p.set_defaults(func=cmd_upgrade)
 
     # changelog
