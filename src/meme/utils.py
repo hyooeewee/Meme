@@ -42,7 +42,7 @@ from meme.constants import (
     TIER_WORKING_THRESHOLD, TIER_ARCHIVE_THRESHOLD,
     SUBDIRS, FRONTMATTER_KEYS,
 )
-from meme.config import DEFAULT_CONFIG
+from meme.models import MemoryMeta
 
 
 # ========================================
@@ -98,18 +98,24 @@ def render_frontmatter(meta: dict, body: str) -> str:
 
 def load_memory(path: Path) -> tuple[dict, str]:
     """Load a memory file, return (meta, body). Handles vault .enc files."""
+    from meme.models import MemoryMeta
     if path.suffix == ".enc":
         result = load_vault_memory(path.stem)
         if result:
-            return result
-        return {"id": path.stem, "sensitive": True}, "[encrypted — unlock with OS keyring]"
+            meta, body = result
+            return MemoryMeta.from_dict(meta), body
+        return MemoryMeta(id=path.stem, sensitive=True), "[encrypted — unlock with OS keyring]"
     text = path.read_text(encoding="utf-8")
-    return parse_frontmatter(text)
+    raw_meta, body = parse_frontmatter(text)
+    return MemoryMeta.from_dict(raw_meta), body
 
 
 def save_memory(path: Path, meta: dict, body: str):
     """Save a memory file with frontmatter."""
+    from meme.models import MemoryMeta
     path.parent.mkdir(parents=True, exist_ok=True)
+    if isinstance(meta, MemoryMeta):
+        meta = meta.to_dict()
     path.write_text(render_frontmatter(meta, body), encoding="utf-8")
 
 # ========================================

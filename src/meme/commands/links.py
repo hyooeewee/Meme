@@ -11,7 +11,7 @@ from pathlib import Path
 from meme.constants import (
     MEME_HOME, META_DIR, WORKING_DIR, ARCHIVE_DIR, COLD_DIR, CONFIG_PATH,
 )
-from meme.config import load_config, save_config, get_config_value, set_config_value, DEFAULT_CONFIG
+from meme.config import load_config, save_config, get_config_value, set_config_value
 from meme.utils import (
     load_memory, save_memory, find_all_memories, find_memory_by_id,
     load_graph, save_graph, rebuild_memory_md, git_commit,

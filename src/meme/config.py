@@ -2,62 +2,35 @@
 import tomllib
 
 from meme.constants import CONFIG_PATH
+from meme.models import MemeConfig
 
 
 # ========================================
 # Configuration
 # ========================================
 
-DEFAULT_CONFIG: dict = {
-    "dream": {
-        "enabled": True,
-        "schedule": "0 3 * * *",
-        "threshold": 0.4,
-        "auto_apply": True,
-        "mode": "all",
-        "report_dir": "dreams",
-    },
-    "daydream": {
-        "threshold": 0.4,
-        "default_mode": "all",
-    },
-    "hooks": {
-        "session_end_check_dream": True,
-    },
-}
 
-
-def _deep_merge(base: dict, override: dict) -> dict:
-    """Deep merge override into base."""
-    result = dict(base)
-    for key, val in override.items():
-        if key in result and isinstance(result[key], dict) and isinstance(val, dict):
-            result[key] = _deep_merge(result[key], val)
-        else:
-            result[key] = val
-    return result
-
-
-def load_config() -> dict:
+def load_config() -> MemeConfig:
     """Load user config merged with defaults."""
-    config = dict(DEFAULT_CONFIG)
+    config = MemeConfig()
     if CONFIG_PATH.exists():
         try:
             text = CONFIG_PATH.read_text(encoding="utf-8")
             user = tomllib.loads(text)
-            config = _deep_merge(config, user)
+            config = MemeConfig.from_dict(user)
         except Exception as e:
             from meme.log import get_logger
-            get_logger('meme.config').warning(f'Config load failed: {e}')
-            pass
+
+            get_logger("meme.config").warning(f"Config load failed: {e}")
     return config
 
 
-def save_config(config: dict):
+def save_config(config: MemeConfig):
     """Save config to disk (preserving comments is not supported)."""
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    data = config.to_dict()
     lines = ["# Meme configuration", ""]
-    for section, values in config.items():
+    for section, values in data.items():
         lines.append(f"[{section}]")
         for key, val in values.items():
             if isinstance(val, bool):
@@ -73,39 +46,44 @@ def save_config(config: dict):
     CONFIG_PATH.write_text("\n".join(lines), encoding="utf-8")
 
 
-def get_config_value(config: dict, key_path: str):
+def get_config_value(config: MemeConfig, key_path: str):
     """Get a config value by dot path, e.g. 'dream.enabled'."""
     keys = key_path.split(".")
     val = config
     for k in keys:
-        if isinstance(val, dict) and k in val:
-            val = val[k]
+        if hasattr(val, k):
+            val = getattr(val, k)
         else:
             return None
     return val
 
 
-def set_config_value(config: dict, key_path: str, value) -> bool:
+def set_config_value(config: MemeConfig, key_path: str, value: str) -> bool:
     """Set a config value by dot path. Returns True if successful."""
     keys = key_path.split(".")
-    val = config
+    target_obj = config
     for k in keys[:-1]:
-        if k not in val:
-            val[k] = {}
-        val = val[k]
-    # Type coercion based on existing value in defaults
-    target_key = keys[-1]
-    existing = get_config_value(DEFAULT_CONFIG, key_path)
-    if existing is not None:
-        if isinstance(existing, bool):
-            value = value.lower() in ("true", "1", "yes", "on")
-        elif isinstance(existing, (int, float)):
-            try:
-                value = float(value)
-                if isinstance(existing, int):
-                    value = int(value)
-            except ValueError:
-                return False
-    val[target_key] = value
-    return True
+        if not hasattr(target_obj, k):
+            return False
+        target_obj = getattr(target_obj, k)
 
+    target_key = keys[-1]
+    if not hasattr(target_obj, target_key):
+        return False
+
+    existing = getattr(target_obj, target_key)
+    # Type coercion
+    if isinstance(existing, bool):
+        coerced = value.lower() in ("true", "1", "yes", "on")
+    elif isinstance(existing, (int, float)):
+        try:
+            coerced = float(value)
+            if isinstance(existing, int):
+                coerced = int(coerced)
+        except ValueError:
+            return False
+    else:
+        coerced = value
+
+    setattr(target_obj, target_key, coerced)
+    return True

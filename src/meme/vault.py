@@ -87,7 +87,7 @@ def vault_decrypt(ciphertext: bytes) -> str:
     return f.decrypt(ciphertext).decode("utf-8")
 
 
-def save_vault_memory(mem_id: str, meta: dict, body: str):
+def save_vault_memory(mem_id: str, meta, body: str):
     """Save an encrypted memory to the vault.
 
     Extracts the secret value from body for encryption, and the descriptive
@@ -131,7 +131,7 @@ def save_vault_memory(mem_id: str, meta: dict, body: str):
     return enc_path
 
 
-def load_vault_memory(mem_id: str) -> tuple[dict, str] | None:
+def load_vault_memory(mem_id: str):
     """Load and decrypt a vault memory."""
     enc_path = VAULT_DIR / f"{mem_id}.enc"
     if not enc_path.exists():

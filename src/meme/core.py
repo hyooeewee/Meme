@@ -28,8 +28,14 @@ from meme.constants import (
 
 # Configuration
 from meme.config import (
-    DEFAULT_CONFIG, _deep_merge, load_config, save_config,
+    load_config, save_config,
     get_config_value, set_config_value,
+)
+
+# Data models
+from meme.models import (
+    MemeConfig, DreamConfig, DaydreamConfig, HooksConfig,
+    MemoryMeta, TierThresholds, TokenBudgets,
 )
 
 # Utilities
