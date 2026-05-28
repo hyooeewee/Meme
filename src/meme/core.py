@@ -450,7 +450,7 @@ def save_vault_memory(mem_id: str, meta: dict, body: str):
         "id": mem_id,
         "type": meta.get("type", "knowledge"),
         "tags": meta.get("tags", []),
-        "summary": summary,
+        "summary": description,
         "encrypted": True,
     }
     vault_index_path = VAULT_DIR / "_vault.json"
@@ -622,6 +622,7 @@ def cmd_setup(args):
         "last_upgrade": None,
         "last_doctor": None,
         "dev": is_dev,
+        "obsidian_path": None,
     }
     VERSION_PATH.write_text(json.dumps(version_data, indent=2))
 
@@ -687,15 +688,19 @@ def cmd_setup(args):
             meme_link = obsidian_target / "Meme"
             ensure_symlink(meme_link, MEME_HOME)
             print(f"  Obsidian symlink: {meme_link} -> {MEME_HOME}")
+            # Record obsidian path in version.json for uninstall
+            try:
+                vd = json.loads(VERSION_PATH.read_text())
+                vd["obsidian_path"] = str(obsidian_target)
+                VERSION_PATH.write_text(json.dumps(vd, indent=2))
+            except Exception:
+                pass
 
     # Initial commit
     git_commit("init: meme memory system installed")
 
-    # Add to PATH if needed
-    bin_str = str(BIN_DIR)
-    path = os.environ.get("PATH", "")
-    if bin_str not in path:
-        _setup_path(bin_str)
+    # Add to PATH if not already in shell rc file
+    _setup_path(str(BIN_DIR))
 
     print(f"\nMeme set up successfully at {MEME_HOME}")
     print("  Run 'meme --help' to get started.")
@@ -968,6 +973,18 @@ def cmd_uninstall(args):
                 if link.is_symlink():
                     link.unlink()
 
+    # Remove Obsidian symlink if recorded
+    try:
+        vd = json.loads(VERSION_PATH.read_text())
+        obsidian_path = vd.get("obsidian_path")
+        if obsidian_path:
+            meme_link = Path(obsidian_path) / "Meme"
+            if meme_link.is_symlink():
+                meme_link.unlink()
+                print(f"  Removed Obsidian symlink: {meme_link}")
+    except Exception:
+        pass
+
     # Remove PATH entry from shell rc files
     _remove_path_entry()
 
@@ -981,7 +998,8 @@ def cmd_uninstall(args):
 
 def _remove_path_entry():
     """Remove meme PATH entry from shell rc files."""
-    marker = "# meme-memory-system"
+    # Support both old (# Meme CLI) and new (# meme-memory-system) markers
+    markers = ["# meme-memory-system", "# Meme CLI"]
     for rc_name in [".zshrc", ".bash_profile", ".profile"]:
         rc_file = Path.home() / rc_name
         if not rc_file.exists():
@@ -991,8 +1009,8 @@ def _remove_path_entry():
             new_lines = []
             skip_next = False
             for line in lines:
-                if marker in line:
-                    skip_next = True  # skip the marker line itself
+                if any(m in line for m in markers):
+                    skip_next = True
                     continue
                 if skip_next and line.strip().startswith("export PATH") and ".meme" in line:
                     skip_next = False
