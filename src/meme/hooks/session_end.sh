@@ -101,4 +101,20 @@ except:
 
 PYEOF
 
+# Check if dream should run (session-end fallback)
+DREAM_ENABLED=$("$MEME_BIN" config --get dream.enabled 2>/dev/null || echo "true")
+CHECK_DREAM=$("$MEME_BIN" config --get hooks.session_end_check_dream 2>/dev/null || echo "true")
+
+if [[ "$DREAM_ENABLED" == "true" && "$CHECK_DREAM" == "true" ]]; then
+    LAST_DREAM_FILE="$MEME_HOME/meta/last_dream.txt"
+    TODAY=$(date +%Y-%m-%d)
+    LAST_DREAM=""
+    if [[ -f "$LAST_DREAM_FILE" ]]; then
+        LAST_DREAM=$(cat "$LAST_DREAM_FILE")
+    fi
+    if [[ "$LAST_DREAM" != "$TODAY" ]]; then
+        nohup "$MEME_BIN" dream >/dev/null 2>&1 &
+    fi
+fi
+
 echo '{"continue":true}'

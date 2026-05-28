@@ -162,6 +162,7 @@ meme learn --file ./notes.md
 | `meme link mem_a mem_b` | 创建记忆关联 |
 | `meme suggest-links` | 基于使用模式建议新关联 |
 | `meme daydream [--dry-run] [--apply]` | 语义聚类 + 链接整合 |
+| `meme dream` | 自动夜间整理（读取配置） |
 | `meme heat` | 显示当前会话热度 |
 
 ### 迁移
@@ -178,6 +179,7 @@ meme learn --file ./notes.md
 | 命令 | 说明 |
 |------|------|
 | `meme doctor [--fix]` | 健康检查 + 自动修复 |
+| `meme config [--get KEY] [--set KEY=VAL] [--edit]` | 查看或修改配置 |
 | `meme backup` | 手动备份 |
 | `meme gc` | 清理旧备份 |
 | `meme reindex` | 重建 index.json + graph.json |

@@ -31,6 +31,11 @@ from pathlib import Path
 
 import yaml
 
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover
+    import tomli as tomllib  # type: ignore[no-redef]
+
 # ========================================
 # Package data helpers
 # ========================================
@@ -110,6 +115,112 @@ FRONTMATTER_KEYS = [
     "sensitive", "source_url", "source_file",
     "corrects", "scope", "wrong_pattern", "correct_pattern",
 ]
+
+# ========================================
+# Configuration
+# ========================================
+
+CONFIG_PATH = MEME_HOME / "config.toml"
+
+DEFAULT_CONFIG: dict = {
+    "dream": {
+        "enabled": True,
+        "schedule": "0 3 * * *",
+        "threshold": 0.4,
+        "auto_apply": True,
+        "mode": "all",
+        "report_dir": "dreams",
+    },
+    "daydream": {
+        "threshold": 0.4,
+        "default_mode": "all",
+    },
+    "hooks": {
+        "session_end_check_dream": True,
+    },
+}
+
+
+def _deep_merge(base: dict, override: dict) -> dict:
+    """Deep merge override into base."""
+    result = dict(base)
+    for key, val in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(val, dict):
+            result[key] = _deep_merge(result[key], val)
+        else:
+            result[key] = val
+    return result
+
+
+def load_config() -> dict:
+    """Load user config merged with defaults."""
+    config = dict(DEFAULT_CONFIG)
+    if CONFIG_PATH.exists():
+        try:
+            text = CONFIG_PATH.read_text(encoding="utf-8")
+            user = tomllib.loads(text)
+            config = _deep_merge(config, user)
+        except Exception:
+            pass
+    return config
+
+
+def save_config(config: dict):
+    """Save config to disk (preserving comments is not supported)."""
+    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    lines = ["# Meme configuration", ""]
+    for section, values in config.items():
+        lines.append(f"[{section}]")
+        for key, val in values.items():
+            if isinstance(val, bool):
+                lines.append(f'{key} = {str(val).lower()}')
+            elif isinstance(val, str):
+                lines.append(f'{key} = "{val}"')
+            elif isinstance(val, (int, float)):
+                lines.append(f'{key} = {val}')
+            elif isinstance(val, list):
+                items = ', '.join(f'"{v}"' for v in val)
+                lines.append(f'{key} = [{items}]')
+        lines.append("")
+    CONFIG_PATH.write_text("\n".join(lines), encoding="utf-8")
+
+
+def get_config_value(config: dict, key_path: str):
+    """Get a config value by dot path, e.g. 'dream.enabled'."""
+    keys = key_path.split(".")
+    val = config
+    for k in keys:
+        if isinstance(val, dict) and k in val:
+            val = val[k]
+        else:
+            return None
+    return val
+
+
+def set_config_value(config: dict, key_path: str, value) -> bool:
+    """Set a config value by dot path. Returns True if successful."""
+    keys = key_path.split(".")
+    val = config
+    for k in keys[:-1]:
+        if k not in val:
+            val[k] = {}
+        val = val[k]
+    # Type coercion based on existing value in defaults
+    target_key = keys[-1]
+    existing = get_config_value(DEFAULT_CONFIG, key_path)
+    if existing is not None:
+        if isinstance(existing, bool):
+            value = value.lower() in ("true", "1", "yes", "on")
+        elif isinstance(existing, (int, float)):
+            try:
+                value = float(value)
+                if isinstance(existing, int):
+                    value = int(value)
+            except ValueError:
+                return False
+    val[target_key] = value
+    return True
+
 
 # ========================================
 # Utility: Frontmatter
@@ -829,6 +940,39 @@ def _register_hooks():
 
     settings["hooks"] = hooks
     settings_path.write_text(json.dumps(settings, indent=2, ensure_ascii=False))
+
+    # --- Dream (launchd) setup ---
+    dream_install = getattr(args, "dream", False)
+    dream_reload = getattr(args, "dream_reload", False)
+    if dream_install or dream_reload:
+        import platform
+        if platform.system() != "Darwin":
+            print("Dream launchd setup is only supported on macOS.")
+            print("Use cron on Linux: add '0 3 * * * meme dream' to your crontab")
+        else:
+            config = load_config()
+            schedule = config.get("dream", {}).get("schedule", "0 3 * * *")
+            plist_content = _generate_launchd_plist(schedule)
+            launch_agents = Path.home() / "Library" / "LaunchAgents"
+            launch_agents.mkdir(parents=True, exist_ok=True)
+            plist_path = launch_agents / "com.meme.dream.plist"
+
+            # Write plist
+            plist_path.write_text(plist_content, encoding="utf-8")
+
+            # Load/unload
+            subprocess.run(["launchctl", "unload", str(plist_path)], capture_output=True)
+            result = subprocess.run(["launchctl", "load", str(plist_path)], capture_output=True, text=True)
+            if result.returncode == 0:
+                print(f"Dream launchd job installed: {plist_path}")
+                print(f"  Schedule: {schedule}")
+                print(f"  Logs: {MEME_HOME}/dreams/dream.log")
+            else:
+                print(f"Failed to load launchd job: {result.stderr}")
+
+    if not dream_install and not dream_reload and not already_installed:
+        print("\nTip: Enable nightly dream consolidation with:")
+        print("  meme setup --dream")
 
 # ========================================
 # Command: init
@@ -2224,9 +2368,13 @@ def _daydream_report(memories: list[dict], clusters: list[list[dict]],
 
 def cmd_daydream(args):
     """Daydream: semantic clustering and link consolidation."""
+    config = load_config()
+    dd_cfg = config.get("daydream", {})
     dry_run = getattr(args, "dry_run", False)
-    mode = getattr(args, "mode", "all")
-    threshold = getattr(args, "threshold", 0.4)
+    mode = getattr(args, "mode", None) or dd_cfg.get("default_mode", "all")
+    threshold = getattr(args, "threshold", None)
+    if threshold is None:
+        threshold = dd_cfg.get("threshold", 0.4)
     apply_links = getattr(args, "apply", False)
 
     print(f"Daydream — memory consolidation")
@@ -2345,6 +2493,224 @@ def cmd_daydream(args):
         git_commit("daydream: consolidated memory graph")
 
     print("\nDaydream complete.")
+
+
+# ========================================
+# Command: config
+# ========================================
+
+
+def cmd_config(args):
+    """View or modify Meme configuration."""
+    config = load_config()
+    get_path = getattr(args, "get", None)
+    set_path = getattr(args, "set", None)
+    edit = getattr(args, "edit", False)
+
+    if get_path:
+        val = get_config_value(config, get_path)
+        if val is None:
+            print(f"Config key not found: {get_path}")
+            sys.exit(1)
+        print(val)
+        return
+
+    if set_path:
+        # Parse "key=value"
+        if "=" not in set_path:
+            print("Usage: meme config --set key=value")
+            sys.exit(1)
+        key_path, value = set_path.split("=", 1)
+        key_path = key_path.strip()
+        value = value.strip()
+        if set_config_value(config, key_path, value):
+            save_config(config)
+            print(f"Set {key_path} = {get_config_value(config, key_path)}")
+        else:
+            print(f"Failed to set {key_path}")
+            sys.exit(1)
+        return
+
+    if edit:
+        editor = os.environ.get("EDITOR", "vi")
+        if not CONFIG_PATH.exists():
+            save_config(config)
+        subprocess.run([editor, str(CONFIG_PATH)])
+        return
+
+    # Default: print full config
+    print("# Meme Configuration")
+    print(f"# Source: {CONFIG_PATH}")
+    print()
+    for section, values in config.items():
+        print(f"[{section}]")
+        for key, val in values.items():
+            if isinstance(val, bool):
+                print(f"  {key} = {str(val).lower()}")
+            elif isinstance(val, str):
+                print(f'  {key} = "{val}"')
+            else:
+                print(f"  {key} = {val}")
+        print()
+
+
+# ========================================
+# Command: dream
+# ========================================
+
+
+def _cron_to_launchd_dict(schedule: str) -> dict:
+    """Convert a 5-field cron expression to launchd StartCalendarInterval keys."""
+    parts = schedule.split()
+    if len(parts) != 5:
+        return {"Hour": 3, "Minute": 0}
+    minute, hour, day, month, weekday = parts
+    result = {}
+
+    def _parse_field(field: str, key: str, rng: tuple):
+        if field == "*":
+            return
+        if "," in field:
+            vals = []
+            for p in field.split(","):
+                if "-" in p:
+                    start, end = p.split("-", 1)
+                    vals.extend(range(int(start), int(end) + 1))
+                elif "/" in p:
+                    base, step = p.split("/", 1)
+                    start = int(base) if base != "*" else rng[0]
+                    vals.extend(range(start, rng[1] + 1, int(step)))
+                else:
+                    vals.append(int(p))
+            result[key] = vals[0] if len(vals) == 1 else vals
+            return
+        if "-" in field:
+            start, end = field.split("-", 1)
+            result[key] = list(range(int(start), int(end) + 1))
+            return
+        if "/" in field:
+            base, step = field.split("/", 1)
+            start = int(base) if base != "*" else rng[0]
+            result[key] = list(range(start, rng[1] + 1, int(step)))
+            return
+        result[key] = int(field)
+
+    _parse_field(minute, "Minute", (0, 59))
+    _parse_field(hour, "Hour", (0, 23))
+    _parse_field(day, "Day", (1, 31))
+    _parse_field(month, "Month", (1, 12))
+    # Weekday: cron 0=Sun, launchd 0=Sun too
+    _parse_field(weekday, "Weekday", (0, 7))
+    return result
+
+
+def _generate_launchd_plist(schedule: str) -> str:
+    """Generate a launchd plist for the dream cron job."""
+    interval = _cron_to_launchd_dict(schedule)
+    meme_bin = str(MEME_HOME / "bin" / "meme")
+    report_dir = str(MEME_HOME / "dreams")
+    out_log = f"{report_dir}/dream.log"
+    err_log = f"{report_dir}/dream.error.log"
+
+    interval_xml = ""
+    for key, val in interval.items():
+        if isinstance(val, list):
+            interval_xml += f"        <key>{key}</key>\n"
+            interval_xml += "        <array>\n"
+            for v in val:
+                interval_xml += f"          <integer>{v}</integer>\n"
+            interval_xml += "        </array>\n"
+        else:
+            interval_xml += f"        <key>{key}</key>\n"
+            interval_xml += f"        <integer>{val}</integer>\n"
+
+    plist = f'''<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.meme.dream</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>{meme_bin}</string>
+        <string>dream</string>
+    </array>
+    <key>StartCalendarInterval</key>
+    <dict>
+{interval_xml}    </dict>
+    <key>StandardOutPath</key>
+    <string>{out_log}</string>
+    <key>StandardErrorPath</key>
+    <string>{err_log}</string>
+    <key>RunAtLoad</key>
+    <false/>
+</dict>
+</plist>'''
+    return plist
+
+
+def cmd_dream(args):
+    """Dream: automated nightly memory consolidation."""
+    config = load_config()
+    dream_cfg = config.get("dream", {})
+
+    if not dream_cfg.get("enabled", True):
+        print("Dream mode is disabled. Enable with: meme config --set dream.enabled=true")
+        return
+
+    threshold = dream_cfg.get("threshold", 0.4)
+    mode = dream_cfg.get("mode", "all")
+    auto_apply = dream_cfg.get("auto_apply", True)
+    report_dir_name = dream_cfg.get("report_dir", "dreams")
+    report_dir = MEME_HOME / report_dir_name
+    report_dir.mkdir(parents=True, exist_ok=True)
+
+    today = datetime.date.today().strftime("%Y-%m-%d")
+    report_path = report_dir / f"{today}.md"
+
+    # Redirect output to report file
+    import io
+    old_stdout = sys.stdout
+    sys.stdout = buffer = io.StringIO()
+
+    # Reuse daydream logic
+    class FakeArgs:
+        pass
+
+    fake = FakeArgs()
+    fake.dry_run = False
+    fake.mode = mode
+    fake.threshold = threshold
+    fake.apply = auto_apply
+
+    try:
+        cmd_daydream(fake)
+    except Exception as e:
+        print(f"\nDream error: {e}")
+
+    output = buffer.getvalue()
+    sys.stdout = old_stdout
+
+    # Write report
+    report_lines = [
+        f"# Dream Report — {today}",
+        "",
+        f"- Schedule: {dream_cfg.get('schedule', '0 3 * * *')}",
+        f"- Threshold: {threshold}",
+        f"- Mode: {mode}",
+        f"- Auto-apply: {auto_apply}",
+        "",
+        "```",
+    ]
+    report_lines.extend(output.splitlines())
+    report_lines.append("```")
+    report_path.write_text("\n".join(report_lines), encoding="utf-8")
+
+    # Record last run
+    last_dream_path = META_DIR / "last_dream.txt"
+    last_dream_path.write_text(today, encoding="utf-8")
+
+    print(f"Dream complete. Report: {report_path}")
 
 
 # ========================================
@@ -2977,6 +3343,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--migrate", action="store_true", help="Also import from Claude Code")
     p.add_argument("--obsidian", type=str, help="Path to Obsidian vault for symlink")
     p.add_argument("--dev", action="store_true", help="Symlink hook scripts instead of copying (for local development)")
+    p.add_argument("--dream", action="store_true", help="Install launchd plist for nightly dream consolidation (macOS)")
+    p.add_argument("--dream-reload", action="store_true", help="Reload launchd job after config changes")
     p.set_defaults(func=cmd_setup)
 
     # init
@@ -3115,6 +3483,17 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--apply", action="store_true",
                    help="Apply suggested links automatically")
     p.set_defaults(func=cmd_daydream)
+
+    # config
+    p = sub.add_parser("config", help="View or modify configuration")
+    p.add_argument("--get", default=None, help="Get a config value by dot path (e.g. dream.enabled)")
+    p.add_argument("--set", default=None, help="Set a config value (e.g. dream.enabled=false)")
+    p.add_argument("--edit", action="store_true", help="Open config in $EDITOR")
+    p.set_defaults(func=cmd_config)
+
+    # dream
+    p = sub.add_parser("dream", help="Run automated memory consolidation (night mode)")
+    p.set_defaults(func=cmd_dream)
 
     # doctor
     p = sub.add_parser("doctor", help="Health check")

@@ -143,6 +143,7 @@ meme learn --file ./notes.md
 | `meme link mem_a mem_b` | Create a bidirectional link |
 | `meme suggest-links` | Suggest new links based on usage patterns |
 | `meme daydream [--dry-run] [--apply]` | Semantic clustering + link consolidation |
+| `meme dream` | Automated nightly consolidation (reads config) |
 | `meme heat` | Show current session heat |
 
 ### Migration
@@ -159,6 +160,7 @@ meme learn --file ./notes.md
 | Command | Description |
 |---------|-------------|
 | `meme doctor [--fix]` | Health check + auto-fix |
+| `meme config [--get KEY] [--set KEY=VAL] [--edit]` | View or modify configuration |
 | `meme backup` | Manual backup |
 | `meme gc` | Clean old backups |
 | `meme reindex` | Rebuild index.json + graph.json |
