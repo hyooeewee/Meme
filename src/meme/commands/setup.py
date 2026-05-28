@@ -1,4 +1,5 @@
 """Setup and init commands."""
+import datetime
 import json
 import os
 import re
@@ -7,8 +8,20 @@ import subprocess
 import sys
 from pathlib import Path
 
-from meme.constants import MEME_HOME, BIN_DIR, META_DIR, ARCHIVE_DIR, WORKING_DIR, BACKUPS_DIR, MEMORY_MD_PATH
-from meme.utils import ensure_symlink, _get_package_resource_path
+from meme.config import load_config
+from meme import __version__
+from meme.constants import (
+    MEME_HOME, BIN_DIR, META_DIR, ARCHIVE_DIR, WORKING_DIR,
+    COLD_DIR, VAULT_DIR, BACKUPS_DIR, MEMORY_MD_PATH,
+    VERSION_PATH, IMPORT_STATE_PATH, CONFLICT_LOG_PATH, DECAY_LOG_PATH,
+    CURRENT_SCHEMA,
+)
+from meme.utils import (
+    ensure_symlink, _get_package_resource_path,
+    save_index, save_graph, rebuild_memory_md, git_commit, save_memory, git_run,
+)
+from meme.commands.ingest import _do_import_claude, _do_import_claude_global
+from meme.commands.links import _generate_launchd_plist
 
 # ========================================
 # Command: setup
@@ -54,7 +67,7 @@ def cmd_setup(args):
 
     is_dev = getattr(args, "dev", False)
     version_data = {
-        "installed_version": CURRENT_VERSION,
+        "installed_version": __version__,
         "installed_at": datetime.datetime.now().isoformat(),
         "schema_version": CURRENT_SCHEMA,
         "last_upgrade": None,
@@ -112,6 +125,39 @@ def cmd_setup(args):
 
     # Register hooks in Claude Code settings
     _register_hooks()
+
+    # --- Dream (launchd) setup ---
+    dream_install = getattr(args, "dream", False)
+    dream_reload = getattr(args, "dream_reload", False)
+    if dream_install or dream_reload:
+        import platform
+        if platform.system() != "Darwin":
+            print("Dream launchd setup is only supported on macOS.")
+            print("Use cron on Linux: add '0 3 * * * meme dream' to your crontab")
+        else:
+            config = load_config()
+            schedule = config.get("dream", {}).get("schedule", "0 3 * * *")
+            plist_content = _generate_launchd_plist(schedule)
+            launch_agents = Path.home() / "Library" / "LaunchAgents"
+            launch_agents.mkdir(parents=True, exist_ok=True)
+            plist_path = launch_agents / "com.meme.dream.plist"
+
+            # Write plist
+            plist_path.write_text(plist_content, encoding="utf-8")
+
+            # Load/unload
+            subprocess.run(["launchctl", "unload", str(plist_path)], capture_output=True)
+            result = subprocess.run(["launchctl", "load", str(plist_path)], capture_output=True, text=True)
+            if result.returncode == 0:
+                print(f"Dream launchd job installed: {plist_path}")
+                print(f"  Schedule: {schedule}")
+                print(f"  Logs: {MEME_HOME}/dreams/dream.log")
+            else:
+                print(f"Failed to load launchd job: {result.stderr}")
+
+    if not dream_install and not dream_reload and not already_installed:
+        print("\nTip: Enable nightly dream consolidation with:")
+        print("  meme setup --dream")
 
     # Optional: migrate
     if getattr(args, "migrate", False):
@@ -267,39 +313,6 @@ def _register_hooks():
 
     settings["hooks"] = hooks
     settings_path.write_text(json.dumps(settings, indent=2, ensure_ascii=False))
-
-    # --- Dream (launchd) setup ---
-    dream_install = getattr(args, "dream", False)
-    dream_reload = getattr(args, "dream_reload", False)
-    if dream_install or dream_reload:
-        import platform
-        if platform.system() != "Darwin":
-            print("Dream launchd setup is only supported on macOS.")
-            print("Use cron on Linux: add '0 3 * * * meme dream' to your crontab")
-        else:
-            config = load_config()
-            schedule = config.get("dream", {}).get("schedule", "0 3 * * *")
-            plist_content = _generate_launchd_plist(schedule)
-            launch_agents = Path.home() / "Library" / "LaunchAgents"
-            launch_agents.mkdir(parents=True, exist_ok=True)
-            plist_path = launch_agents / "com.meme.dream.plist"
-
-            # Write plist
-            plist_path.write_text(plist_content, encoding="utf-8")
-
-            # Load/unload
-            subprocess.run(["launchctl", "unload", str(plist_path)], capture_output=True)
-            result = subprocess.run(["launchctl", "load", str(plist_path)], capture_output=True, text=True)
-            if result.returncode == 0:
-                print(f"Dream launchd job installed: {plist_path}")
-                print(f"  Schedule: {schedule}")
-                print(f"  Logs: {MEME_HOME}/dreams/dream.log")
-            else:
-                print(f"Failed to load launchd job: {result.stderr}")
-
-    if not dream_install and not dream_reload and not already_installed:
-        print("\nTip: Enable nightly dream consolidation with:")
-        print("  meme setup --dream")
 
 # ========================================
 # Command: init
