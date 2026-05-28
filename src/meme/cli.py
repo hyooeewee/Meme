@@ -3,6 +3,7 @@ import argparse
 import sys
 
 from meme import __version__ as CURRENT_VERSION
+from meme.log import setup_logging
 from meme.commands.setup import cmd_setup, cmd_init, cmd_uninstall
 from meme.commands.memory import (
     cmd_add, cmd_list, cmd_show, cmd_search, cmd_query,
@@ -51,6 +52,8 @@ def build_parser() -> argparse.ArgumentParser:
         action="version",
         version=f"%(prog)s {CURRENT_VERSION}",
     )
+    parser.add_argument("-v", "--verbose", action="store_true", help="Enable debug output")
+    parser.add_argument("-q", "--quiet", action="store_true", help="Suppress non-error output")
     sub = parser.add_subparsers(dest="command", title="commands", metavar="COMMAND")
 
     # setup
@@ -201,6 +204,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Similarity threshold for clustering (default: 0.4)")
     p.add_argument("--apply", action="store_true",
                    help="Apply suggested links automatically")
+    p.add_argument("--merge", action="store_true",
+                   help="Merge duplicate memories within clusters")
     p.set_defaults(func=cmd_daydream)
 
     # config
@@ -286,6 +291,8 @@ def build_parser() -> argparse.ArgumentParser:
 def main():
     parser = build_parser()
     args = parser.parse_args()
+
+    setup_logging(verbose=args.verbose, quiet=args.quiet)
 
     if not args.command:
         parser.print_help()

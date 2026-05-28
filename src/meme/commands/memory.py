@@ -263,7 +263,9 @@ def cmd_list(args):
                 "path": str(p),
                 "summary": body[:80].replace("\n", " "),
             })
-        except Exception:
+        except Exception as e:
+            from meme.log import get_logger
+            get_logger('meme').warning(f'Command error in {os.path.basename(path)}: {e}')
             continue
 
     # Sort
@@ -412,7 +414,9 @@ def cmd_search(args):
                     "content": body[:500].replace("\n", " "),
                     "tags": meta.get("tags", []),
                 })
-        except Exception:
+        except Exception as e:
+            from meme.log import get_logger
+            get_logger('meme').warning(f'Command error in {os.path.basename(path)}: {e}')
             continue
 
     results.sort(key=lambda x: -x["score"])
@@ -747,7 +751,9 @@ def _find_related(content: str, tags: list[str]) -> list[str]:
             common = mem_words.intersection(content_words)
             if len(common) >= 5:
                 related.append(meta["id"])
-        except Exception:
+        except Exception as e:
+            from meme.log import get_logger
+            get_logger('meme').warning(f'Command error in {os.path.basename(path)}: {e}')
             continue
     return related[:10]  # Cap at 10 links
 

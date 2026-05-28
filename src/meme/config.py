@@ -46,7 +46,9 @@ def load_config() -> dict:
             text = CONFIG_PATH.read_text(encoding="utf-8")
             user = tomllib.loads(text)
             config = _deep_merge(config, user)
-        except Exception:
+        except Exception as e:
+            from meme.log import get_logger
+            get_logger('meme.config').warning(f'Config load failed: {e}')
             pass
     return config
 

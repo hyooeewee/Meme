@@ -124,7 +124,9 @@ def _find_related(content: str, tags: list[str]) -> list[str]:
             common = mem_words.intersection(content_words)
             if len(common) >= 5:
                 related.append(meta["id"])
-        except Exception:
+        except Exception as e:
+            from meme.log import get_logger
+            get_logger('meme').warning(f'Command error in {os.path.basename(path)}: {e}')
             continue
     return related[:10]  # Cap at 10 links
 
@@ -313,7 +315,9 @@ def _do_import_codex(codex_path: str | None):
             save_memory(mem_path, meta, body)
             _update_index_entry(meta["id"], meta, mem_path)
             imported += 1
-        except Exception:
+        except Exception as e:
+            from meme.log import get_logger
+            get_logger('meme').warning(f'Command error in {os.path.basename(path)}: {e}')
             continue
 
     if imported:

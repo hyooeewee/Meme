@@ -356,8 +356,53 @@ def cmd_daydream(args):
         if applied:
             print(f"\nApplied {applied} new link(s).")
 
+    # Merge duplicate memories within clusters
+    merged = 0
+    if not dry_run and getattr(args, "merge", False) and clusters:
+        for cluster in clusters:
+            if len(cluster) < 2:
+                continue
+            # Pick highest-importance memory as core
+            core = max(cluster, key=lambda m: m["meta"].get("importance", 0.5))
+            core_path = core["path"]
+            core_meta, core_body = load_memory(core_path)
+
+            # Collect merged content from others
+            merged_lines = []
+            merged_tags = set(core_meta.get("tags", []))
+            merged_links = set(core_meta.get("links", []))
+
+            for m in cluster:
+                if m["id"] == core["id"]:
+                    continue
+                try:
+                    other_meta, other_body = load_memory(m["path"])
+                    merged_lines.append(f"\n\n<!-- merged from {m['id']} -->")
+                    merged_lines.append(other_body.strip())
+                    merged_tags.update(other_meta.get("tags", []))
+                    merged_links.update(other_meta.get("links", []))
+                    # Remove merged memory
+                    m["path"].unlink()
+                    # Remove from index
+                    from meme.utils import _remove_from_index
+                    _remove_from_index(m["id"])
+                except Exception:
+                    continue
+
+            if merged_lines:
+                new_body = core_body.strip() + "\n".join(merged_lines)
+                core_meta["body"] = new_body
+                core_meta["tags"] = sorted(merged_tags)
+                core_meta["links"] = sorted(merged_links)
+                core_meta["last_accessed"] = datetime.date.today().strftime("%Y-%m-%d")
+                save_memory(core_path, core_meta, new_body)
+                merged += len(merged_lines) // 2  # Each memory contributes 2 lines
+
+        if merged:
+            print(f"\nMerged {merged} duplicate memory/ies into core memories.")
+
     # Sync graph and index
-    if not dry_run and (clusters or link_suggestions):
+    if not dry_run and (clusters or link_suggestions or merged):
         graph = {}
         for p in find_all_memories(include_cold=True):
             if p.suffix == ".enc":

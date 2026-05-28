@@ -98,7 +98,9 @@ def cmd_doctor(args):
         try:
             _, body = load_memory(p)
             total_tokens += count_tokens(body)
-        except Exception:
+        except Exception as e:
+            from meme.log import get_logger
+            get_logger('meme').warning(f'Command error in {os.path.basename(path)}: {e}')
             continue
     if total_tokens > TOKEN_BUDGET_WORKING:
         issues.append(("token_overbudget", total_tokens, TOKEN_BUDGET_WORKING))
@@ -193,7 +195,9 @@ def cmd_reindex(args):
             links = meta.get("links", [])
             if links:
                 graph[mem_id] = links
-        except Exception:
+        except Exception as e:
+            from meme.log import get_logger
+            get_logger('meme').warning(f'Command error in {os.path.basename(path)}: {e}')
             continue
 
     save_index(index)
@@ -223,7 +227,9 @@ def cmd_stats(args):
             t = meta.get("type", "unknown")
             types[t] = types.get(t, 0) + 1
             total_tokens += count_tokens(body)
-        except Exception:
+        except Exception as e:
+            from meme.log import get_logger
+            get_logger('meme').warning(f'Command error in {os.path.basename(path)}: {e}')
             continue
 
     graph = load_graph()
@@ -255,7 +261,9 @@ def cmd_export(args):
             if meta.get("forgotten"):
                 continue
             memories.append({"meta": meta, "body": body})
-        except Exception:
+        except Exception as e:
+            from meme.log import get_logger
+            get_logger('meme').warning(f'Command error in {os.path.basename(path)}: {e}')
             continue
 
     if fmt == "json":

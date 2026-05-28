@@ -91,7 +91,9 @@ def cmd_decay(args):
                 decayed += 1
                 print(f"  {meta['id']}: {old_imp:.3f} -> {new_imp:.3f} ({days} days)")
 
-        except Exception:
+        except Exception as e:
+            from meme.log import get_logger
+            get_logger('meme').warning(f'Command error in {os.path.basename(path)}: {e}')
             continue
 
     if not dry_run and decayed:
