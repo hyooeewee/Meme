@@ -2065,6 +2065,289 @@ def cmd_suggest_links(args):
         print(f"    Sample: {', '.join(s['sample'])}")
 
 # ========================================
+# Command: daydream
+# ========================================
+
+_DAYDREAM_STOPS = {
+    "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
+    "have", "has", "had", "do", "does", "did", "will", "would", "could",
+    "should", "may", "might", "shall", "can", "need", "must",
+    "i", "me", "my", "we", "our", "you", "your", "he", "she", "it",
+    "they", "them", "this", "that", "these", "those",
+    "and", "or", "but", "if", "then", "else", "when", "at", "by", "for",
+    "with", "about", "against", "between", "through", "during", "before",
+    "after", "above", "below", "to", "from", "up", "down", "in", "out",
+    "on", "off", "over", "under", "again", "further", "than", "once",
+    "here", "there", "why", "how", "all", "each", "every", "both", "few",
+    "more", "most", "other", "some", "such", "no", "nor", "not", "only",
+    "own", "same", "so", "very", "just", "because", "as", "until", "while",
+    "of", "into", "what", "which", "who", "whom", "whose",
+    "help", "please", "want", "know", "think", "make", "get", "go", "come",
+    "的", "了", "在", "是", "我", "有", "和", "就", "不", "人", "都", "一", "一个", "上", "也",
+    "很", "到", "说", "要", "去", "你", "会", "着", "没有", "看", "好", "自己", "这", "那",
+    "使用", "进行", "通过", "需要", "可以", "应该", "我们", "他们", "这个", "那个",
+    "这些", "那些", "什么", "怎么", "为什么", "哪里", "时候", "现在", "然后", "但是",
+    "因为", "所以", "如果", "虽然", "已经", "正在", "将要", "好的", "是的", "对的", "请",
+    "帮", "他", "她", "它", "吗", "呢", "吧", "给", "把", "被", "让", "对", "向", "从",
+}
+
+
+def _extract_significant_words(text: str) -> set[str]:
+    """Extract significant words from memory content."""
+    if not text:
+        return set()
+    text = text.lower()
+    words = set(re.findall(r"\b[a-z]{3,}\b", text))
+    chinese = re.findall(r"[一-鿿]{2,}", text)
+    words.update(chinese)
+    return words - _DAYDREAM_STOPS
+
+
+def _memory_similarity(m1: dict, m2: dict) -> float:
+    """Compute composite similarity between two memory dicts."""
+    score = 0.0
+    if m1.get("type") == m2.get("type"):
+        score += 0.1
+    tags1 = set(m1.get("tags", []))
+    tags2 = set(m2.get("tags", []))
+    if tags1 or tags2:
+        union = tags1 | tags2
+        if union:
+            score += len(tags1 & tags2) / len(union) * 0.25
+    words1 = _extract_significant_words(m1.get("body", ""))
+    words2 = _extract_significant_words(m2.get("body", ""))
+    if words1 or words2:
+        union = words1 | words2
+        if union:
+            score += len(words1 & words2) / len(union) * 0.45
+    id1 = m1.get("id", "")
+    id2 = m2.get("id", "")
+    if id1 and id2 and (id1 in m2.get("body", "") or id2 in m1.get("body", "")):
+        score += 0.2
+    return min(score, 1.0)
+
+
+def _daydream_cluster(memories: list[dict], threshold: float) -> list[list[dict]]:
+    """Cluster memories with union-find."""
+    n = len(memories)
+    if n < 2:
+        return []
+    parent = list(range(n))
+    rank = [0] * n
+
+    def find(x: int) -> int:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(x: int, y: int):
+        px, py = find(x), find(y)
+        if px == py:
+            return
+        if rank[px] < rank[py]:
+            px, py = py, px
+        parent[py] = px
+        if rank[px] == rank[py]:
+            rank[px] += 1
+
+    for i in range(n):
+        for j in range(i + 1, n):
+            if _memory_similarity(memories[i], memories[j]) >= threshold:
+                union(i, j)
+
+    clusters = {}
+    for i in range(n):
+        clusters.setdefault(find(i), []).append(memories[i])
+    return [members for members in clusters.values() if len(members) > 1]
+
+
+def _cluster_keywords(cluster: list[dict]) -> list[str]:
+    """Extract top keywords for a cluster."""
+    all_words = []
+    for m in cluster:
+        all_words.extend(_extract_significant_words(m.get("body", "")))
+    if not all_words:
+        return []
+    from collections import Counter
+    return [w for w, _ in Counter(all_words).most_common(5)]
+
+
+def _daydream_report(memories: list[dict], clusters: list[list[dict]],
+                     link_suggestions: list[dict], dry_run: bool):
+    """Print consolidation report."""
+    clustered_ids = {m["id"] for c in clusters for m in c}
+    orphans = [m for m in memories if m["id"] not in clustered_ids]
+
+    print("=" * 60)
+    print("Daydream Report")
+    print("=" * 60)
+    print()
+
+    if clusters:
+        print(f"Found {len(clusters)} semantic cluster(s):")
+        for i, cluster in enumerate(clusters, 1):
+            keywords = _cluster_keywords(cluster)
+            print(f"\n  Cluster {i}: {', '.join(keywords) if keywords else '(no keywords)'}")
+            print(f"  {'─' * 50}")
+            for m in cluster:
+                tags = ", ".join(m.get("tags", [])) or "none"
+                body = m.get("body", "").replace("\n", " ")[:60]
+                print(f"    • {m['id']} ({m.get('type', '?')}) [tags: {tags}]")
+                print(f"      {body}...")
+    else:
+        print("No semantic clusters found.")
+
+    if link_suggestions:
+        print(f"\nSuggested {len(link_suggestions)} new link(s):")
+        for s in link_suggestions:
+            print(f"  {s['a']} <-> {s['b']}")
+            reason = s.get("reason", "")
+            if reason:
+                print(f"    reason: {reason}")
+    else:
+        print("\nNo new link suggestions.")
+
+    if orphans:
+        print(f"\n{len(orphans)} isolated memory/ies:")
+        for m in orphans[:10]:
+            print(f"  • {m['id']}")
+        if len(orphans) > 10:
+            print(f"    ... and {len(orphans) - 10} more")
+
+    if dry_run:
+        print("\n" + "─" * 60)
+        print("Dry run — no changes applied.")
+        print("Run without --dry-run to apply suggestions.")
+        print("─" * 60)
+
+
+def cmd_daydream(args):
+    """Daydream: semantic clustering and link consolidation."""
+    dry_run = getattr(args, "dry_run", False)
+    mode = getattr(args, "mode", "all")
+    threshold = getattr(args, "threshold", 0.4)
+    apply_links = getattr(args, "apply", False)
+
+    print(f"Daydream — memory consolidation")
+    print(f"  mode: {mode}, threshold: {threshold}, dry_run: {dry_run}")
+    print()
+
+    memories = []
+    for p in find_all_memories(include_cold=True):
+        if p.suffix == ".enc":
+            continue
+        try:
+            meta, body = load_memory(p)
+            if meta.get("forgotten"):
+                continue
+            memories.append({
+                "path": p,
+                "meta": meta,
+                "body": body,
+                "id": meta.get("id", p.stem),
+                "type": meta.get("type", "feedback"),
+                "tags": list(meta.get("tags", [])),
+                "links": set(meta.get("links", [])),
+            })
+        except Exception:
+            continue
+
+    if not memories:
+        print("No memories found to consolidate.")
+        return
+
+    print(f"Loaded {len(memories)} memories\n")
+
+    # Phase 1: Cluster
+    clusters = []
+    if mode in ("all", "cluster"):
+        clusters = _daydream_cluster(memories, threshold)
+
+    # Phase 2: Links
+    link_suggestions = []
+    seen_pairs = set()
+    if mode in ("all", "link"):
+        for cluster in clusters:
+            for i, m1 in enumerate(cluster):
+                for m2 in cluster[i + 1:]:
+                    pair = tuple(sorted([m1["id"], m2["id"]]))
+                    if m2["id"] not in m1["links"] and m1["id"] not in m2["links"]:
+                        if pair not in seen_pairs:
+                            seen_pairs.add(pair)
+                            link_suggestions.append({
+                                "a": m1["id"],
+                                "b": m2["id"],
+                                "reason": f"cluster: {_cluster_keywords(cluster)[:3]}",
+                            })
+
+        for i, m1 in enumerate(memories):
+            for m2 in memories[i + 1:]:
+                if m1["id"] in m2.get("body", "") or m2["id"] in m1.get("body", ""):
+                    pair = tuple(sorted([m1["id"], m2["id"]]))
+                    if pair not in seen_pairs:
+                        if m2["id"] not in m1["links"] and m1["id"] not in m2["links"]:
+                            seen_pairs.add(pair)
+                            link_suggestions.append({
+                                "a": m1["id"],
+                                "b": m2["id"],
+                                "reason": "explicit cross-reference",
+                            })
+
+    _daydream_report(memories, clusters, link_suggestions, dry_run)
+
+    # Apply links
+    applied = 0
+    if not dry_run and apply_links and link_suggestions:
+        for s in link_suggestions:
+            path_a = find_memory_by_id(s["a"])
+            path_b = find_memory_by_id(s["b"])
+            if not path_a or not path_b:
+                continue
+            try:
+                meta_a, body_a = load_memory(path_a)
+                meta_b, body_b = load_memory(path_b)
+                links_a = set(meta_a.get("links", []))
+                links_b = set(meta_b.get("links", []))
+                changed = False
+                if s["b"] not in links_a:
+                    links_a.add(s["b"])
+                    meta_a["links"] = sorted(links_a)
+                    save_memory(path_a, meta_a, body_a)
+                    changed = True
+                if s["a"] not in links_b:
+                    links_b.add(s["a"])
+                    meta_b["links"] = sorted(links_b)
+                    save_memory(path_b, meta_b, body_b)
+                    changed = True
+                if changed:
+                    applied += 1
+            except Exception:
+                continue
+        if applied:
+            print(f"\nApplied {applied} new link(s).")
+
+    # Sync graph and index
+    if not dry_run and (clusters or link_suggestions):
+        graph = {}
+        for p in find_all_memories(include_cold=True):
+            if p.suffix == ".enc":
+                continue
+            try:
+                meta, _ = load_memory(p)
+                mem_id = meta.get("id")
+                if mem_id:
+                    graph[mem_id] = sorted(set(meta.get("links", [])))
+            except Exception:
+                continue
+        save_graph(graph)
+        rebuild_memory_md()
+        git_commit("daydream: consolidated memory graph")
+
+    print("\nDaydream complete.")
+
+
+# ========================================
 # Command: doctor
 # ========================================
 
@@ -2821,6 +3104,17 @@ def build_parser() -> argparse.ArgumentParser:
     # suggest-links
     p = sub.add_parser("suggest-links", help="Suggest new links")
     p.set_defaults(func=cmd_suggest_links)
+
+    # daydream
+    p = sub.add_parser("daydream", help="Semantic clustering and link consolidation")
+    p.add_argument("--dry-run", action="store_true", help="Preview without applying changes")
+    p.add_argument("--mode", choices=["all", "cluster", "link"], default="all",
+                   help="Run mode (default: all)")
+    p.add_argument("--threshold", type=float, default=0.4,
+                   help="Similarity threshold for clustering (default: 0.4)")
+    p.add_argument("--apply", action="store_true",
+                   help="Apply suggested links automatically")
+    p.set_defaults(func=cmd_daydream)
 
     # doctor
     p = sub.add_parser("doctor", help="Health check")
