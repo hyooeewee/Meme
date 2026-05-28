@@ -94,6 +94,36 @@ meme learn https://docs.example.com/guide
 meme learn --file ./notes.md
 ```
 
+## Global Options
+
+All commands support:
+
+- `-v, --verbose` — Enable debug output
+- `-q, --quiet` — Suppress non-error output
+
+## Configuration
+
+User config lives in `~/.meme/config.toml`:
+
+```toml
+[dream]
+enabled = true
+schedule = "0 3 * * *"
+threshold = 0.4
+auto_apply = true
+
+[daydream]
+threshold = 0.4
+default_mode = "all"
+```
+
+Manage via CLI:
+```bash
+meme config --get dream.enabled
+meme config --set dream.threshold=0.3
+meme config --edit
+```
+
 ## Command Reference
 
 ### Memory management
@@ -142,7 +172,7 @@ meme learn --file ./notes.md
 | `meme warm mem_id` | Warm a cold memory back to archive |
 | `meme link mem_a mem_b` | Create a bidirectional link |
 | `meme suggest-links` | Suggest new links based on usage patterns |
-| `meme daydream [--dry-run] [--apply]` | Semantic clustering + link consolidation |
+| `meme daydream [--dry-run] [--apply] [--merge]` | Semantic clustering + link consolidation |
 | `meme dream` | Automated nightly consolidation (reads config) |
 | `meme heat` | Show current session heat |
 

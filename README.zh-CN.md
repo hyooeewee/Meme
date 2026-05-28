@@ -113,6 +113,36 @@ meme learn https://docs.example.com/guide
 meme learn --file ./notes.md
 ```
 
+## 全局选项
+
+所有命令都支持：
+
+- `-v, --verbose` — 启用调试输出
+- `-q, --quiet` — 只显示错误信息
+
+## 配置
+
+用户配置保存在 `~/.meme/config.toml`：
+
+```toml
+[dream]
+enabled = true
+schedule = "0 3 * * *"
+threshold = 0.4
+auto_apply = true
+
+[daydream]
+threshold = 0.4
+default_mode = "all"
+```
+
+通过 CLI 管理：
+```bash
+meme config --get dream.enabled
+meme config --set dream.threshold=0.3
+meme config --edit
+```
+
 ## 命令参考
 
 ### 记忆管理
@@ -161,7 +191,7 @@ meme learn --file ./notes.md
 | `meme warm mem_id` | 将 cold 记忆回温到 archive |
 | `meme link mem_a mem_b` | 创建记忆关联 |
 | `meme suggest-links` | 基于使用模式建议新关联 |
-| `meme daydream [--dry-run] [--apply]` | 语义聚类 + 链接整合 |
+| `meme daydream [--dry-run] [--apply] [--merge]` | 语义聚类 + 链接整合 |
 | `meme dream` | 自动夜间整理（读取配置） |
 | `meme heat` | 显示当前会话热度 |
 
