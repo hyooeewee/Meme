@@ -52,6 +52,8 @@ def cmd_suggest_links(args):
     suggestions = []
     memories = []
     for p in find_all_memories():
+        if p.suffix == ".enc":
+            continue
         try:
             meta, body = load_memory(p)
             memories.append((meta, body))
