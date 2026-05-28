@@ -161,6 +161,7 @@ meme learn --file ./notes.md
 | `meme warm mem_id` | 将 cold 记忆回温到 archive |
 | `meme link mem_a mem_b` | 创建记忆关联 |
 | `meme suggest-links` | 基于使用模式建议新关联 |
+| `meme daydream [--dry-run] [--apply]` | 语义聚类 + 链接整合 |
 | `meme heat` | 显示当前会话热度 |
 
 ### 迁移

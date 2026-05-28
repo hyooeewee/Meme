@@ -142,6 +142,7 @@ meme learn --file ./notes.md
 | `meme warm mem_id` | Warm a cold memory back to archive |
 | `meme link mem_a mem_b` | Create a bidirectional link |
 | `meme suggest-links` | Suggest new links based on usage patterns |
+| `meme daydream [--dry-run] [--apply]` | Semantic clustering + link consolidation |
 | `meme heat` | Show current session heat |
 
 ### Migration
