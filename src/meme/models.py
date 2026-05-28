@@ -22,6 +22,8 @@ class DreamConfig:
 class DaydreamConfig:
     threshold: float = 0.4
     default_mode: Literal["all", "cluster", "link"] = "all"
+    auto_apply: bool = True
+    merge: bool = True
 
 
 @dataclass

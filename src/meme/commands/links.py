@@ -254,11 +254,12 @@ def cmd_daydream(args):
     config = load_config()
     dd_cfg = config.get("daydream", {})
     dry_run = getattr(args, "dry_run", False)
-    mode = getattr(args, "mode", None) or dd_cfg.get("default_mode", "all")
+    mode = getattr(args, "mode", None) or getattr(dd_cfg, "default_mode", "all")
     threshold = getattr(args, "threshold", None)
     if threshold is None:
-        threshold = dd_cfg.get("threshold", 0.4)
-    apply_links = getattr(args, "apply", False)
+        threshold = getattr(dd_cfg, "threshold", 0.4)
+    apply_links = getattr(args, "apply", False) or getattr(dd_cfg, "auto_apply", False)
+    merge = getattr(args, "merge", False) or getattr(dd_cfg, "merge", False)
 
     print(f"Daydream — memory consolidation")
     print(f"  mode: {mode}, threshold: {threshold}, dry_run: {dry_run}")
@@ -377,7 +378,7 @@ def cmd_daydream(args):
 
     # Merge duplicate memories within clusters
     merged = 0
-    if not dry_run and getattr(args, "merge", False) and clusters:
+    if not dry_run and merge and clusters:
         for cluster in clusters:
             if len(cluster) < 2:
                 continue
@@ -410,7 +411,6 @@ def cmd_daydream(args):
 
             if merged_lines:
                 new_body = core_body.strip() + "\n".join(merged_lines)
-                core_meta["body"] = new_body
                 core_meta["tags"] = sorted(merged_tags)
                 core_meta["links"] = sorted(merged_links)
                 core_meta["last_accessed"] = datetime.date.today().strftime("%Y-%m-%d")
