@@ -2367,9 +2367,15 @@ def cmd_auth(args):
         print(f"echo 'ERROR: Memory {mem_id} is empty' >&2", file=sys.stderr)
         sys.exit(1)
 
-    # Output export statement to stdout (consumed by source)
+    # Write secret to a secure temp file instead of stdout to keep it out of AI context
+    import tempfile
     escaped = body.replace("'", "'\\''")
-    print(f"export {var_name}='{escaped}'")
+    fd, tmp_path = tempfile.mkstemp(prefix="memectl_secret_", suffix=".sh")
+    os.chmod(tmp_path, 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write(f"export {var_name}='{escaped}'\n")
+    # Output a command that sources the file and then removes it
+    print(f"source '{tmp_path}' && rm -f '{tmp_path}'")
 
 # ========================================
 # Command: run (vault-gated command execution)
@@ -2379,7 +2385,11 @@ def cmd_run(args):
     """Decrypt a vault secret, inject it as an env var, and exec a command.
 
     The AI never sees the plaintext — it only references the variable name.
-    Example: meme run mem_xxx --var API_TOKEN -- curl -H "Authorization: Bearer $API_TOKEN" https://api.example.com
+    Use single quotes around arguments that reference $VAR so the shell
+    does not expand them before meme run sets the env var.
+
+    Example:
+        meme run mem_xxx --var API_TOKEN -- sh -c 'curl -H "Authorization: Bearer $API_TOKEN" https://api.example.com'
     """
     mem_id = args.mem_id
     var_name = args.var or "MEM_SECRET"
