@@ -58,8 +58,10 @@ def cmd_doctor(args):
                         ensure_symlink(link, target)
                         print(f"  Fixed symlink: {link}")
 
-    # Check frontmatter
+    # Check frontmatter (skip vault .enc files — decrypting them requires auth)
     for p in find_all_memories(include_cold=True):
+        if p.suffix == ".enc":
+            continue
         try:
             meta, body = load_memory(p)
             missing = []
@@ -186,6 +188,8 @@ def cmd_reindex(args):
     graph = {}
 
     for p in find_all_memories(include_cold=True):
+        if p.suffix == ".enc":
+            continue
         try:
             meta, body = load_memory(p)
             mem_id = meta.get("id")
@@ -217,6 +221,8 @@ def cmd_stats(args):
     total_tokens = 0
 
     for p in find_all_memories(include_cold=True):
+        if p.suffix == ".enc":
+            continue
         try:
             meta, body = load_memory(p)
             if meta.get("forgotten"):
@@ -256,6 +262,8 @@ def cmd_export(args):
     memories = []
 
     for p in find_all_memories(include_cold=True):
+        if p.suffix == ".enc":
+            continue
         try:
             meta, body = load_memory(p)
             if meta.get("forgotten"):

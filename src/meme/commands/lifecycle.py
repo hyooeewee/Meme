@@ -44,6 +44,8 @@ def cmd_decay(args):
     decayed = 0
 
     for p in find_all_memories(include_cold=True):
+        if p.suffix == ".enc":
+            continue
         try:
             meta, body = load_memory(p)
             if meta.get("forgotten"):

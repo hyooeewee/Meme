@@ -734,6 +734,8 @@ def _find_related(content: str, tags: list[str]) -> list[str]:
     content_lower = content.lower()
     related = []
     for p in find_all_memories():
+        if p.suffix == ".enc":
+            continue
         try:
             meta, body = load_memory(p)
             if meta.get("forgotten"):
