@@ -7,7 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from meme.constants import MEME_HOME, BIN_DIR, META_DIR, ARCHIVE_DIR, WORKING_DIR, BACKUPS_DIR
+from meme.constants import MEME_HOME, BIN_DIR, META_DIR, ARCHIVE_DIR, WORKING_DIR, BACKUPS_DIR, MEMORY_MD_PATH
 from meme.utils import ensure_symlink, _get_package_resource_path
 
 # ========================================

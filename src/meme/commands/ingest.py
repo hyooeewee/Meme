@@ -6,7 +6,7 @@ import re
 import sys
 from pathlib import Path
 
-from meme.constants import ARCHIVE_DIR, SUBDIRS
+from meme.constants import ARCHIVE_DIR, SUBDIRS, INDEX_PATH, GRAPH_PATH, MEMORY_MD_PATH
 from meme.utils import generate_id, git_commit, find_all_memories, load_memory
 
 # ========================================
