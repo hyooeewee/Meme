@@ -284,9 +284,8 @@ def cmd_list(args):
         return
 
     if getattr(args, "format", "text") == "json":
-        import datetime as _dt
         def _json_default(obj):
-            if isinstance(obj, (_dt.date, _dt.datetime)):
+            if isinstance(obj, (datetime.date, datetime.datetime)):
                 return obj.isoformat()
             raise TypeError
         print(json.dumps(memories, ensure_ascii=False, default=_json_default))

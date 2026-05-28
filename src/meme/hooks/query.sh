@@ -144,8 +144,73 @@ SEARCH_RESULT=$("$MEME_BIN" search "$KEYWORDS" --format json 2>/dev/null || echo
 
 # Check if we got results
 if [[ "$SEARCH_RESULT" == "[]" || -z "$SEARCH_RESULT" ]]; then
-    echo '{"continue":true,"suppressOutput":true}'
-    exit 0
+    # Try semantic fallback via daydream clusters
+    SEMANTIC_RESULT=$(python3 -c '
+import json, os, sys
+clusters_file = os.path.expanduser("~/.meme/meta/clusters.json")
+if not os.path.exists(clusters_file):
+    sys.exit(0)
+with open(clusters_file) as f:
+    data = json.load(f)
+user_kw = set("$KEYWORDS".lower().split())
+matches = []
+for c in data.get("clusters", []):
+    cluster_kw = set(k.lower() for k in c.get("keywords", []))
+    overlap = user_kw & cluster_kw
+    if overlap:
+        matches.append((len(overlap), c["core_id"]))
+matches.sort(reverse=True)
+for _, core_id in matches[:2]:
+    print(core_id)
+' 2>/dev/null)
+
+    if [[ -n "$SEMANTIC_RESULT" ]]; then
+        # Build pseudo search result from cluster cores
+        SEARCH_RESULT=$(echo "$SEMANTIC_RESULT" | python3 -c '
+import json, os, sys
+from meme.utils import find_memory_by_id, load_memory
+results = []
+for line in sys.stdin:
+    mem_id = line.strip()
+    if not mem_id:
+        continue
+    path = find_memory_by_id(mem_id)
+    if not path:
+        continue
+    try:
+        meta, body = load_memory(path)
+        results.append({
+            "id": mem_id,
+            "title": mem_id,
+            "importance": meta.get("importance", 0.5),
+            "tier": "archive",
+            "tags": meta.get("tags", []),
+            "content": body[:300],
+            "sensitive": meta.get("sensitive", False),
+        })
+    except Exception:
+        continue
+print(json.dumps(results))
+')
+    fi
+
+    if [[ "$SEARCH_RESULT" == "[]" || -z "$SEARCH_RESULT" ]]; then
+        # Log query miss for session-end analysis
+        python3 -c "
+import json, os, time
+misses_file = os.path.expanduser('~/.meme/meta/query_misses.jsonl')
+os.makedirs(os.path.dirname(misses_file), exist_ok=True)
+entry = {
+    'ts': time.strftime('%Y-%m-%dT%H:%M:%SZ'),
+    'keywords': '$KEYWORDS',
+    'session_id': open(os.path.expanduser('~/.meme/meta/session_heat.json')).read().split('\"session_id\": \"')[1].split('\"')[0] if os.path.exists(os.path.expanduser('~/.meme/meta/session_heat.json')) else 'unknown'
+}
+with open(misses_file, 'a') as f:
+    f.write(json.dumps(entry) + '\n')
+" 2>/dev/null
+        echo '{"continue":true,"suppressOutput":true}'
+        exit 0
+    fi
 fi
 
 # Format results as additionalContext

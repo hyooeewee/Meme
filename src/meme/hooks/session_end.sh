@@ -93,6 +93,34 @@ for mem_id, info in heat_map.items():
                 except:
                     continue
 
+# Check query misses and suggest adding memories
+misses_file = os.path.join(MEME_HOME, "meta", "query_misses.jsonl")
+if os.path.exists(misses_file):
+    try:
+        from collections import Counter
+        keywords_list = []
+        with open(misses_file) as f:
+            for line in f:
+                try:
+                    entry = json.loads(line.strip())
+                    kw = entry.get("keywords", "")
+                    if kw:
+                        keywords_list.extend(kw.split())
+                except:
+                    continue
+        if keywords_list:
+            counter = Counter(keywords_list)
+            frequent = [(w, c) for w, c in counter.most_common(5) if c >= 3]
+            if frequent:
+                print("\n[Meme] Query miss analysis:")
+                for word, count in frequent:
+                    print(f"  '{word}' was searched {count} times but no memory found.")
+                print("  Consider adding: meme add \"...\" --tags ...")
+        # Clean up after reporting
+        os.remove(misses_file)
+    except Exception:
+        pass
+
 # Clean up session heat file
 try:
     os.remove(heat_file)

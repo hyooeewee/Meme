@@ -293,6 +293,23 @@ def cmd_daydream(args):
     if mode in ("all", "cluster"):
         clusters = _daydream_cluster(memories, threshold)
 
+    # Save cluster info for semantic retrieval in hooks
+    if clusters:
+        cluster_data = {
+            "generated_at": datetime.datetime.now().isoformat(),
+            "clusters": [],
+        }
+        for cluster in clusters:
+            keywords = _cluster_keywords(cluster)
+            core = max(cluster, key=lambda m: m["meta"].get("importance", 0.5))
+            cluster_data["clusters"].append({
+                "keywords": keywords,
+                "core_id": core["id"],
+                "members": [m["id"] for m in cluster],
+            })
+        clusters_path = Path(MEME_HOME) / "meta" / "clusters.json"
+        clusters_path.write_text(json.dumps(cluster_data, indent=2, ensure_ascii=False), encoding="utf-8")
+
     # Phase 2: Links
     link_suggestions = []
     seen_pairs = set()
@@ -595,7 +612,6 @@ def cmd_dream(args):
     report_path = report_dir / f"{today}.md"
 
     # Redirect output to report file
-    import io
     old_stdout = sys.stdout
     sys.stdout = buffer = io.StringIO()
 
