@@ -3,7 +3,10 @@ import datetime
 import json
 import os
 import re
+import shutil
+import subprocess
 import sys
+from collections import deque
 from pathlib import Path
 
 from meme.constants import (

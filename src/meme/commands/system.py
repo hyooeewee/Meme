@@ -1,14 +1,22 @@
 """System commands."""
+import datetime
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 from meme import __version__ as CURRENT_VERSION
-from meme.constants import MEME_HOME, META_DIR, VERSION_PATH, VERSION_CHECK_PATH
-from meme.utils import load_memory
+from meme.constants import (
+    MEME_HOME, META_DIR, VERSION_PATH, VERSION_CHECK_PATH,
+    SESSION_HEAT_PATH, BIN_DIR,
+)
+from meme.utils import (
+    load_memory, find_memory_by_id, _get_vault_key,
+    _get_package_resource_path, git_commit, git_run,
+)
 from meme.vault import load_vault_memory
 
 

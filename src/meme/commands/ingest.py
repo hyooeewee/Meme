@@ -6,11 +6,13 @@ import re
 import sys
 from pathlib import Path
 
-from meme.constants import ARCHIVE_DIR, SUBDIRS, INDEX_PATH, GRAPH_PATH, MEMORY_MD_PATH
+from meme.constants import (
+    ARCHIVE_DIR, WORKING_DIR, SUBDIRS, INDEX_PATH, GRAPH_PATH, MEMORY_MD_PATH,
+)
 from meme.utils import (
     generate_id, git_commit, find_all_memories, load_memory, parse_frontmatter,
     find_memory_by_id, get_tier, get_memory_dir, save_memory, _update_index_entry,
-    rebuild_memory_md, create_memory_record,
+    rebuild_memory_md, create_memory_record, _add_to_graph,
 )
 
 # ========================================

@@ -127,7 +127,7 @@ class MemoryMeta:
 
     def to_dict(self) -> dict:
         """Serialize to dict, skipping None values and empty lists."""
-        result = {}
+        result: dict[str, object] = {}
         for k, v in asdict(self).items():
             if v is None:
                 continue

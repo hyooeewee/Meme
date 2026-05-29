@@ -73,6 +73,7 @@ def set_config_value(config: MemeConfig, key_path: str, value: str) -> bool:
 
     existing = getattr(target_obj, target_key)
     # Type coercion
+    coerced: bool | int | float | str
     if isinstance(existing, bool):
         coerced = value.lower() in ("true", "1", "yes", "on")
     elif isinstance(existing, (int, float)):

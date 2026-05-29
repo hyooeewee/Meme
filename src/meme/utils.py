@@ -104,7 +104,7 @@ def render_frontmatter(meta: dict, body: str) -> str:
     return "\n".join(lines)
 
 
-def load_memory(path: Path) -> tuple[dict, str]:
+def load_memory(path: Path) -> tuple[MemoryMeta, str]:
     """Load a memory file, return (meta, body). Handles vault .enc files."""
     from meme.models import MemoryMeta
     if path.suffix == ".enc":
@@ -208,27 +208,27 @@ def git_commit(message: str, files: list[Path] | None = None):
 # Utility: Index & Graph
 # ========================================
 
-def load_index() -> dict:
+def load_index() -> dict[str, object]:
     if INDEX_PATH.exists():
         return json.loads(INDEX_PATH.read_text())
     return {}
 
 
-def save_index(index: dict):
+def save_index(index: dict[str, object]) -> None:
     INDEX_PATH.write_text(json.dumps(index, indent=2, ensure_ascii=False))
 
 
-def load_graph() -> dict:
+def load_graph() -> dict[str, object]:
     if GRAPH_PATH.exists():
         return json.loads(GRAPH_PATH.read_text())
     return {}
 
 
-def save_graph(graph: dict):
+def save_graph(graph: dict[str, object]) -> None:
     GRAPH_PATH.write_text(json.dumps(graph, indent=2, ensure_ascii=False))
 
 
-def load_forgotten_index() -> dict:
+def load_forgotten_index() -> dict[str, object]:
     if FORGOTTEN_INDEX_PATH.exists():
         return json.loads(FORGOTTEN_INDEX_PATH.read_text())
     return {}
@@ -258,7 +258,7 @@ def ensure_symlink(link_path: Path, target: Path):
 
 def find_all_memories(include_cold: bool = False, include_forgotten: bool = False) -> list[Path]:
     """Find all memory .md and vault .enc files."""
-    paths = []
+    paths: list[Path] = []
     for d in [WORKING_DIR, ARCHIVE_DIR]:
         if d.exists():
             paths.extend(d.rglob("*.md"))

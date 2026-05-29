@@ -1,9 +1,14 @@
 """Meme vault encryption: Touch ID + keyring + Fernet."""
+import json
 import os
 import platform
+import re
 from pathlib import Path
 
+import yaml
+
 from meme.constants import VAULT_DIR, META_DIR
+from meme.utils import VAULT_KEYRING_SERVICE, VAULT_KEYRING_USER
 
 def _touch_id_auth(reason: str = "Access Meme vault") -> bool:
     """Authenticate with Touch ID / Face ID on macOS. Returns True if authenticated."""
