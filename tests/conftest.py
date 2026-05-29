@@ -60,6 +60,23 @@ def init_meme(temp_meme_home):
 
 
 @pytest.fixture
+def reload_modules(temp_meme_home):
+    """Reload meme modules so they pick up the temp MEME_HOME."""
+    import importlib
+
+    import meme.constants as c
+    import meme.config as cfg
+    import meme.utils as utils
+
+    importlib.reload(c)
+    importlib.reload(cfg)
+    importlib.reload(utils)
+    # Ensure the temp meme home directory exists
+    c.MEME_HOME.mkdir(parents=True, exist_ok=True)
+    return temp_meme_home
+
+
+@pytest.fixture
 def cli_runner(temp_meme_home):
     """Run meme CLI commands and return (exit_code, stdout, stderr)."""
 
