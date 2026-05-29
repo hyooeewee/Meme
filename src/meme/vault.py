@@ -1,23 +1,23 @@
 """Meme vault encryption: Touch ID + keyring + Fernet."""
+
 import json
-import os
 import platform
 import re
-from pathlib import Path
 
 import yaml
 
-from meme.constants import VAULT_DIR, META_DIR
+from meme.constants import VAULT_DIR
 from meme.utils import VAULT_KEYRING_SERVICE, VAULT_KEYRING_USER
+
 
 def _touch_id_auth(reason: str = "Access Meme vault") -> bool:
     """Authenticate with Touch ID / Face ID on macOS. Returns True if authenticated."""
-    import platform
+
     if platform.system() != "Darwin":
         return False
     try:
-        from LocalAuthentication import LAContext
         import Foundation
+        from LocalAuthentication import LAContext
 
         context = LAContext.alloc().init()
         avail, _ = context.canEvaluatePolicy_error_(1, None)
@@ -59,18 +59,20 @@ def _get_vault_key(require_auth: bool = True) -> bytes:
     the key is retrieved silently so new vault items can be created without
     interrupting the user.
     """
-    import platform
+
     if require_auth and platform.system() == "Darwin":
         # Prompt Touch ID / password before accessing keychain
         if not _touch_id_auth("Authenticate to access Meme vault"):
             # Touch ID cancelled or unavailable — still try keyring
             pass
     import keyring
+
     key_str = keyring.get_password(VAULT_KEYRING_SERVICE, VAULT_KEYRING_USER)
     if key_str:
         return key_str.encode("utf-8")
     # Generate new key (Fernet key is already URL-safe base64 encoded)
     from cryptography.fernet import Fernet
+
     key = Fernet.generate_key()
     keyring.set_password(VAULT_KEYRING_SERVICE, VAULT_KEYRING_USER, key.decode())
     return key
@@ -79,6 +81,7 @@ def _get_vault_key(require_auth: bool = True) -> bytes:
 def vault_encrypt(plaintext: str) -> bytes:
     """Encrypt a string for vault storage."""
     from cryptography.fernet import Fernet
+
     key = _get_vault_key(require_auth=False)
     f = Fernet(key)
     return f.encrypt(plaintext.encode("utf-8"))
@@ -87,6 +90,7 @@ def vault_encrypt(plaintext: str) -> bytes:
 def vault_decrypt(ciphertext: bytes) -> str:
     """Decrypt vault ciphertext."""
     from cryptography.fernet import Fernet
+
     key = _get_vault_key(require_auth=True)
     f = Fernet(key)
     return f.decrypt(ciphertext).decode("utf-8")
@@ -105,7 +109,7 @@ def save_vault_memory(mem_id: str, meta, body: str):
     # Try to separate description from secret value.
     # E.g. "我的 API token 是 sk-live-xxx" -> desc="我的 API token", secret="sk-live-xxx"
     # E.g. "API token: sk-live-xxx"        -> desc="API token",      secret="sk-live-xxx"
-    m = re.search(r'^(.{3,200}?)\s*(?:是|为|:|：|=)\s*(.+)$', body)
+    m = re.search(r"^(.{3,200}?)\s*(?:是|为|:|：|=)\s*(.+)$", body)
     if m:
         description = m.group(1).strip()
         secret_value = m.group(2).strip()
@@ -161,5 +165,3 @@ def parse_memory_string(text: str) -> tuple[dict, str]:
             body = parts[2].strip()
             return meta, body
     return {}, text
-
-

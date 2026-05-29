@@ -1,28 +1,33 @@
 """System commands."""
+
 import datetime
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
-from pathlib import Path
 
 from meme import __version__ as CURRENT_VERSION
 from meme.constants import (
-    MEME_HOME, META_DIR, VERSION_PATH, VERSION_CHECK_PATH,
-    SESSION_HEAT_PATH, BIN_DIR,
+    BIN_DIR,
+    MEME_HOME,
+    SESSION_HEAT_PATH,
+    VERSION_CHECK_PATH,
+    VERSION_PATH,
 )
 from meme.utils import (
-    load_memory, find_memory_by_id, _get_vault_key,
-    _get_package_resource_path, git_commit, git_run,
+    _get_package_resource_path,
+    _get_vault_key,
+    find_memory_by_id,
+    git_commit,
+    git_run,
 )
 from meme.vault import load_vault_memory
-
 
 # ========================================
 # Command: heat
 # ========================================
+
 
 def cmd_heat(args):
     """Show current session heat map."""
@@ -39,9 +44,11 @@ def cmd_heat(args):
     for mid, info in sorted(heat_map.items(), key=lambda x: -x[1].get("heat", 0)):
         print(f"  {mid}: heat={info.get('heat', 0):.2f}")
 
+
 # ========================================
 # Command: auth (biometric-gated secret access)
 # ========================================
+
 
 def cmd_auth(args):
     """Authenticate and export a vault secret as an environment variable."""
@@ -56,13 +63,12 @@ def cmd_auth(args):
 
     # Must be a vault memory
     if mem_path.suffix != ".enc":
-        print(f"echo 'ERROR: {mem_id} is not a sensitive (vault) memory' >&2",
-              file=sys.stderr)
+        print(f"echo 'ERROR: {mem_id} is not a sensitive (vault) memory' >&2", file=sys.stderr)
         sys.exit(1)
 
     # Auth: retrieving the vault key triggers OS-level auth (Touch ID / Hello / password)
     try:
-        key = _get_vault_key()
+        _get_vault_key()
     except Exception as e:
         print(f"echo 'ERROR: Authentication failed — {e}' >&2", file=sys.stderr)
         sys.exit(1)
@@ -80,6 +86,7 @@ def cmd_auth(args):
 
     # Write secret to a secure temp file instead of stdout to keep it out of AI context
     import tempfile
+
     escaped = body.replace("'", "'\\''")
     fd, tmp_path = tempfile.mkstemp(prefix="memectl_secret_", suffix=".sh")
     os.chmod(tmp_path, 0o600)
@@ -88,9 +95,11 @@ def cmd_auth(args):
     # Output a command that sources the file and then removes it
     print(f"source '{tmp_path}' && rm -f '{tmp_path}'")
 
+
 # ========================================
 # Command: run (vault-gated command execution)
 # ========================================
+
 
 def cmd_run(args):
     """Decrypt a vault secret, inject it as an env var, and exec a command.
@@ -156,6 +165,7 @@ def cmd_run(args):
 # Command: version / upgrade / changelog
 # ========================================
 
+
 def cmd_version(args):
     """Show version info."""
     print(f"Meme v{CURRENT_VERSION}")
@@ -164,14 +174,15 @@ def cmd_version(args):
         print(f"  Installed: {data.get('installed_at', 'unknown')}")
         print(f"  Schema: v{data.get('schema_version', '?')}")
 
+
 def _check_remote_version(timeout=5):
     """Check for the latest published version.
 
     Strategy: PyPI first, then GitHub tags fallback.
     Returns the latest version string if newer than CURRENT_VERSION, else None.
     """
-    import urllib.request
     import urllib.error
+    import urllib.request
 
     # --- Try PyPI ---
     try:
@@ -221,11 +232,16 @@ def cmd_upgrade(args):
         if latest:
             print(f"New version available: {CURRENT_VERSION} -> {latest}")
             # Cache the result
-            VERSION_CHECK_PATH.write_text(json.dumps({
-                "latest": latest,
-                "current": CURRENT_VERSION,
-                "checked_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-            }, indent=2))
+            VERSION_CHECK_PATH.write_text(
+                json.dumps(
+                    {
+                        "latest": latest,
+                        "current": CURRENT_VERSION,
+                        "checked_at": datetime.datetime.now(datetime.UTC).isoformat(),
+                    },
+                    indent=2,
+                )
+            )
         else:
             print(f"Meme {CURRENT_VERSION} is up to date.")
         return
@@ -274,11 +290,16 @@ def cmd_upgrade(args):
                     data["installed_version"] = latest
                     data["last_upgrade"] = datetime.datetime.now().isoformat()
                     VERSION_PATH.write_text(json.dumps(data, indent=2))
-                VERSION_CHECK_PATH.write_text(json.dumps({
-                    "latest": latest,
-                    "current": CURRENT_VERSION,
-                    "checked_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-                }, indent=2))
+                VERSION_CHECK_PATH.write_text(
+                    json.dumps(
+                        {
+                            "latest": latest,
+                            "current": CURRENT_VERSION,
+                            "checked_at": datetime.datetime.now(datetime.UTC).isoformat(),
+                        },
+                        indent=2,
+                    )
+                )
                 git_commit(f"upgrade: v{latest}")
                 print(f"Upgraded to {latest}.")
                 print("  Run 'meme --version' to verify.")
@@ -313,11 +334,16 @@ def cmd_upgrade(args):
                 data["installed_version"] = latest
                 data["last_upgrade"] = datetime.datetime.now().isoformat()
                 VERSION_PATH.write_text(json.dumps(data, indent=2))
-            VERSION_CHECK_PATH.write_text(json.dumps({
-                "latest": latest,
-                "current": CURRENT_VERSION,
-                "checked_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-            }, indent=2))
+            VERSION_CHECK_PATH.write_text(
+                json.dumps(
+                    {
+                        "latest": latest,
+                        "current": CURRENT_VERSION,
+                        "checked_at": datetime.datetime.now(datetime.UTC).isoformat(),
+                    },
+                    indent=2,
+                )
+            )
             git_commit(f"upgrade: v{latest}")
             print(f"Upgraded to {latest}.")
         else:
@@ -328,6 +354,7 @@ def cmd_upgrade(args):
         print("To upgrade, re-run the installer:")
         print("  curl -sSL https://raw.githubusercontent.com/hyooeewee/Meme/main/install.sh | bash")
 
+
 def cmd_changelog(args):
     """Show changelog."""
     print("Changelog: see git log for changes.")
@@ -335,4 +362,3 @@ def cmd_changelog(args):
         result = git_run("log", "--oneline", "-20", check=False)
         if result.stdout:
             print(result.stdout)
-

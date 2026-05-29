@@ -1,4 +1,5 @@
 """Meme constants and directory layout."""
+
 import os
 from pathlib import Path
 
@@ -31,7 +32,7 @@ CONFIG_PATH = MEME_HOME / "config.toml"
 CURRENT_SCHEMA = 1
 
 TOKEN_BUDGET_WORKING = 2000  # tokens
-TOKEN_BUDGET_HOOK = 8000     # chars for additionalContext
+TOKEN_BUDGET_HOOK = 8000  # chars for additionalContext
 
 TIER_WORKING_THRESHOLD = 0.8
 TIER_ARCHIVE_THRESHOLD = 0.2
@@ -46,9 +47,24 @@ SUBDIRS = {
 }
 
 FRONTMATTER_KEYS = [
-    "id", "type", "importance", "created", "last_accessed",
-    "access_count", "tags", "links", "superseded_by", "supersedes",
-    "forgotten", "forgotten_at", "forgotten_reason",
-    "sensitive", "source_url", "source_file",
-    "corrects", "scope", "wrong_pattern", "correct_pattern",
+    "id",
+    "type",
+    "importance",
+    "created",
+    "last_accessed",
+    "access_count",
+    "tags",
+    "links",
+    "superseded_by",
+    "supersedes",
+    "forgotten",
+    "forgotten_at",
+    "forgotten_reason",
+    "sensitive",
+    "source_url",
+    "source_file",
+    "corrects",
+    "scope",
+    "wrong_pattern",
+    "correct_pattern",
 ]

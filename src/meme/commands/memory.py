@@ -1,4 +1,5 @@
 """Meme CLI commands."""
+
 import datetime
 import json
 import os
@@ -10,35 +11,41 @@ from collections import deque
 from pathlib import Path
 
 from meme.constants import (
-    MEME_HOME, WORKING_DIR, ARCHIVE_DIR, COLD_DIR, VAULT_DIR,
-    BACKUPS_DIR, META_DIR, BIN_DIR, INDEX_PATH, GRAPH_PATH, MEMORY_MD_PATH,
-    FRONTMATTER_KEYS, SUBDIRS,
-    TIER_WORKING_THRESHOLD, TIER_ARCHIVE_THRESHOLD,
-    TOKEN_BUDGET_WORKING, TOKEN_BUDGET_HOOK,
+    GRAPH_PATH,
+    INDEX_PATH,
+    MEME_HOME,
+    MEMORY_MD_PATH,
+    VAULT_DIR,
+    VERSION_PATH,
 )
-from meme.config import load_config, save_config, get_config_value, set_config_value
 from meme.utils import (
-    parse_frontmatter, render_frontmatter,
-    load_memory, save_memory, count_tokens, generate_id,
-    git_run, git_commit,
-    load_index, save_index, load_graph, save_graph,
-    load_forgotten_index, save_forgotten_index,
-    ensure_symlink, find_all_memories, _is_forgotten,
-    find_memory_by_id, get_tier, get_memory_dir,
-    rebuild_memory_md, _update_index_entry,
-    _remove_from_index, _add_to_graph, _remove_from_graph,
-    _get_package_resource_path, create_memory_record,
+    _add_to_graph,
+    _remove_from_graph,
+    _remove_from_index,
+    _update_index_entry,
+    create_memory_record,
+    find_all_memories,
+    find_memory_by_id,
+    generate_id,
+    get_memory_dir,
+    get_tier,
+    git_commit,
+    git_run,
+    load_forgotten_index,
+    load_graph,
+    load_memory,
+    rebuild_memory_md,
+    save_forgotten_index,
+    save_memory,
 )
 from meme.vault import (
-    _touch_id_auth, _get_vault_key,
-    vault_encrypt, vault_decrypt,
-    save_vault_memory, load_vault_memory,
-    save_memory_to_string, parse_memory_string,
+    load_vault_memory,
 )
 
 # ========================================
 # Command: uninstall
 # ========================================
+
 
 def cmd_uninstall(args):
     """Uninstall the Meme system."""
@@ -55,7 +62,8 @@ def cmd_uninstall(args):
             for event in ["SessionStart", "UserPromptSubmit", "SessionEnd"]:
                 if event in hooks:
                     hooks[event] = [
-                        cfg for cfg in hooks[event]
+                        cfg
+                        for cfg in hooks[event]
                         if not any("meme" in h.get("command", "") for h in cfg.get("hooks", []))
                     ]
             settings["hooks"] = hooks
@@ -124,9 +132,11 @@ def _remove_path_entry():
         except Exception:
             pass
 
+
 # ========================================
 # Command: add
 # ========================================
+
 
 def cmd_add(args):
     """Add a new memory."""
@@ -169,7 +179,7 @@ def cmd_add(args):
 
     # Determine tier and directory
     tier = get_tier(meta)
-    mem_dir = get_memory_dir(mem_type, tier)
+    get_memory_dir(mem_type, tier)
 
     mem_path = create_memory_record(meta, content)
 
@@ -177,9 +187,11 @@ def cmd_add(args):
     print(f"  Type: {mem_type}, Importance: {importance}, Tier: {tier}")
     print(f"  Path: {mem_path}")
 
+
 # ========================================
 # Command: list
 # ========================================
+
 
 def cmd_list(args):
     """List memories."""
@@ -216,41 +228,46 @@ def cmd_list(args):
                     continue
                 if tag_filter and tag_filter not in meta.get("tags", []):
                     continue
-                memories.append({
-                    "id": meta["id"],
-                    "type": meta["type"],
-                    "importance": meta["importance"],
-                    "tier": tier,
-                    "tags": meta["tags"],
-                    "last_accessed": "",
-                    "access_count": 0,
-                    "path": str(p),
-                    "summary": entry.get("summary", "[encrypted]")[:80].replace("\n", " "),
-                })
+                memories.append(
+                    {
+                        "id": meta["id"],
+                        "type": meta["type"],
+                        "importance": meta["importance"],
+                        "tier": tier,
+                        "tags": meta["tags"],
+                        "last_accessed": "",
+                        "access_count": 0,
+                        "path": str(p),
+                        "summary": entry.get("summary", "[encrypted]")[:80].replace("\n", " "),
+                    }
+                )
                 continue
 
-            meta, body = load_memory(p)
-            if meta.get("forgotten") and not show_forgotten:
+            meta_m, body = load_memory(p)
+            if meta_m.get("forgotten") and not show_forgotten:
                 continue
-            tier = get_tier(meta)
+            tier = get_tier(meta_m)
             if tier_filter and tier != tier_filter:
                 continue
-            if tag_filter and tag_filter not in meta.get("tags", []):
+            if tag_filter and tag_filter not in meta_m.get("tags", []):
                 continue
-            memories.append({
-                "id": meta.get("id", p.stem),
-                "type": meta.get("type", "unknown"),
-                "importance": meta.get("importance", 0.5),
-                "tier": tier,
-                "tags": meta.get("tags", []),
-                "last_accessed": meta.get("last_accessed", ""),
-                "access_count": meta.get("access_count", 0),
-                "path": str(p),
-                "summary": body[:80].replace("\n", " "),
-            })
+            memories.append(
+                {
+                    "id": meta_m.get("id", p.stem),
+                    "type": meta_m.get("type", "unknown"),
+                    "importance": meta_m.get("importance", 0.5),
+                    "tier": tier,
+                    "tags": meta_m.get("tags", []),
+                    "last_accessed": meta_m.get("last_accessed", ""),
+                    "access_count": meta_m.get("access_count", 0),
+                    "path": str(p),
+                    "summary": body[:80].replace("\n", " "),
+                }
+            )
         except Exception as e:
             from meme.log import get_logger
-            get_logger('meme').warning(f'Command error in {os.path.basename(path)}: {e}')
+
+            get_logger("meme").warning(f"Command error in {os.path.basename(p)}: {e}")
             continue
 
     # Sort
@@ -269,24 +286,27 @@ def cmd_list(args):
         return
 
     if getattr(args, "format", "text") == "json":
+
         def _json_default(obj):
             if isinstance(obj, (datetime.date, datetime.datetime)):
                 return obj.isoformat()
             raise TypeError
+
         print(json.dumps(memories, ensure_ascii=False, default=_json_default))
         return
 
     # Display
     for m in memories:
-        tags_str = f" [{', '.join(m['tags'][:3])}]" if m['tags'] else ""
-        print(f"  {m['id']}  imp={m['importance']:.1f}  tier={m['tier']}  "
-              f"type={m['type']}{tags_str}")
+        tags_str = f" [{', '.join(m['tags'][:3])}]" if m["tags"] else ""
+        print(f"  {m['id']}  imp={m['importance']:.1f}  tier={m['tier']}  " f"type={m['type']}{tags_str}")
         print(f"    {m['summary']}")
     print(f"\nTotal: {len(memories)} memories")
+
 
 # ========================================
 # Command: show
 # ========================================
+
 
 def cmd_show(args):
     """Show a memory's full content. For vault memories, triggers auth."""
@@ -307,7 +327,7 @@ def cmd_show(args):
         print(f"Type: {meta.get('type', 'unknown')}")
         print(f"Importance: {meta.get('importance', 0.5)}")
         print(f"Tags: {', '.join(meta.get('tags', []))}")
-        print(f"Tier: vault [encrypted]")
+        print("Tier: vault [encrypted]")
         print("-" * 40)
         print(body)
         return
@@ -322,9 +342,11 @@ def cmd_show(args):
     print("-" * 40)
     print(body)
 
+
 # ========================================
 # Command: search
 # ========================================
+
 
 def _extract_title(body: str, mem_id: str) -> str:
     """Extract title from body h1 or fallback to id."""
@@ -358,19 +380,21 @@ def cmd_search(args):
                 text = (entry.get("summary", "") + " " + " ".join(entry.get("tags", []))).lower()
                 score = sum(text.count(t) for t in query_terms)
                 if score > 0:
-                    results.append({
-                        "id": vid,
-                        "title": entry.get("summary", vid)[:60],
-                        "type": entry.get("type", "sensitive"),
-                        "importance": 0.5,
-                        "tier": "vault",
-                        "score": score,
-                        "path": str(p),
-                        "summary": entry.get("summary", "[encrypted]")[:120],
-                        "content": entry.get("summary", "[encrypted]")[:500],
-                        "tags": entry.get("tags", []),
-                        "sensitive": True,
-                    })
+                    results.append(
+                        {
+                            "id": vid,
+                            "title": entry.get("summary", vid)[:60],
+                            "type": entry.get("type", "sensitive"),
+                            "importance": 0.5,
+                            "tier": "vault",
+                            "score": score,
+                            "path": str(p),
+                            "summary": entry.get("summary", "[encrypted]")[:120],
+                            "content": entry.get("summary", "[encrypted]")[:500],
+                            "tags": entry.get("tags", []),
+                            "sensitive": True,
+                        }
+                    )
                 continue
 
             meta, body = load_memory(p)
@@ -386,21 +410,24 @@ def cmd_search(args):
                 score *= 1.5
             if score > 0:
                 tier = get_tier(meta)
-                results.append({
-                    "id": meta.get("id", p.stem),
-                    "title": _extract_title(body, meta.get("id", p.stem)),
-                    "type": meta.get("type", "unknown"),
-                    "importance": meta.get("importance", 0.5),
-                    "tier": tier,
-                    "score": score,
-                    "path": str(p),
-                    "summary": body[:120].replace("\n", " "),
-                    "content": body[:500].replace("\n", " "),
-                    "tags": meta.get("tags", []),
-                })
+                results.append(
+                    {
+                        "id": meta.get("id", p.stem),
+                        "title": _extract_title(body, meta.get("id", p.stem)),
+                        "type": meta.get("type", "unknown"),
+                        "importance": meta.get("importance", 0.5),
+                        "tier": tier,
+                        "score": score,
+                        "path": str(p),
+                        "summary": body[:120].replace("\n", " "),
+                        "content": body[:500].replace("\n", " "),
+                        "tags": meta.get("tags", []),
+                    }
+                )
         except Exception as e:
             from meme.log import get_logger
-            get_logger('meme').warning(f'Command error in {os.path.basename(path)}: {e}')
+
+            get_logger("meme").warning(f"Command error in {os.path.basename(p)}: {e}")
             continue
 
     results.sort(key=lambda x: -x["score"])
@@ -437,14 +464,17 @@ def cmd_search(args):
     print(f'Search results for "{args.query}":\n')
     for r in results[:20]:
         cold_marker = " [cold] ⚠️ 较久未使用" if r["tier"] == "cold" else ""
-        print(f"  [{r['tier']}] {r['id']} (importance: {r['importance']:.1f}, "
-              f"score: {r['score']:.0f}){cold_marker}")
+        print(
+            f"  [{r['tier']}] {r['id']} (importance: {r['importance']:.1f}, " f"score: {r['score']:.0f}){cold_marker}"
+        )
         print(f"    {r['summary']}")
     print(f"\nFound: {len(results)} memories (showing top {min(20, len(results))})")
+
 
 # ========================================
 # Command: query (graph traversal)
 # ========================================
+
 
 def cmd_query(args):
     """Graph traversal retrieval from a memory node."""
@@ -460,7 +490,8 @@ def cmd_query(args):
         current, dist = queue.popleft()
         if dist >= 3:
             continue
-        neighbors = graph.get(current, [])
+        neighbors_raw = graph.get(current, [])
+        neighbors: list[str] = list(neighbors_raw) if hasattr(neighbors_raw, "__iter__") else []
         for neighbor in neighbors:
             if neighbor not in visited:
                 visited[neighbor] = dist + 1
@@ -482,37 +513,39 @@ def cmd_query(args):
             if not path:
                 continue
             try:
-                meta, body = load_memory(path)
-                imp = meta.get("importance", 0.5)
-                load_w = imp * (0.4 ** dist)
+                meta_q, body_q = load_memory(path)
+                imp = meta_q.get("importance", 0.5)
+                load_w = imp * (0.4**dist)
 
                 if dist == 0:
                     # Full load
                     print(f"\n  [{mid}] importance={imp:.1f}")
-                    print(f"  {body}")
+                    print(f"  {body_q}")
                 elif dist == 1:
                     # Full load (likely passes threshold)
                     print(f"\n  [{mid}] importance={imp:.1f}, load_weight={load_w:.2f}")
-                    print(f"  {body[:200]}")
+                    print(f"  {body_q[:200]}")
                 else:
                     # Title + description only
                     print(f"\n  [{mid}] importance={imp:.1f}, load_weight={load_w:.2f}")
-                    print(f"  Tags: {', '.join(meta.get('tags', []))}")
+                    print(f"  Tags: {', '.join(meta_q.get('tags', []))}")
             except Exception:
                 continue
 
     # Update access
     path = find_memory_by_id(mem_id)
     if path:
-        meta, body = load_memory(path)
-        meta["last_accessed"] = datetime.datetime.now().strftime("%Y-%m-%d")
-        meta["access_count"] = meta.get("access_count", 0) + 1
-        save_memory(path, meta, body)
-        _update_index_entry(mem_id, meta, path)
+        meta_q, body_q = load_memory(path)
+        meta_q["last_accessed"] = datetime.datetime.now().strftime("%Y-%m-%d")
+        meta_q["access_count"] = meta_q.get("access_count", 0) + 1
+        save_memory(path, meta_q, body_q)
+        _update_index_entry(mem_id, meta_q, path)
+
 
 # ========================================
 # Command: edit
 # ========================================
+
 
 def cmd_edit(args):
     """Edit a memory."""
@@ -548,9 +581,11 @@ def cmd_edit(args):
     git_commit(f"edit: {mem_id}", [path, INDEX_PATH, GRAPH_PATH, MEMORY_MD_PATH])
     print(f"Updated: {mem_id}")
 
+
 # ========================================
 # Command: delete
 # ========================================
+
 
 def cmd_delete(args):
     """Delete a memory."""
@@ -573,9 +608,11 @@ def cmd_delete(args):
     git_commit(f"delete: {mem_id}", [INDEX_PATH, GRAPH_PATH, MEMORY_MD_PATH])
     print(f"Deleted: {mem_id}")
 
+
 # ========================================
 # Command: forget
 # ========================================
+
 
 def cmd_forget(args):
     """Forget a memory (soft/hard/purge)."""
@@ -592,9 +629,15 @@ def cmd_forget(args):
         if args.purge:
             # Purge from git history too
             try:
-                git_run("filter-branch", "--force", "--index-filter",
-                        f"git rm --cached --ignore-unmatch {path}", "--prune-empty",
-                        "--", "--all")
+                git_run(
+                    "filter-branch",
+                    "--force",
+                    "--index-filter",
+                    f"git rm --cached --ignore-unmatch {path}",
+                    "--prune-empty",
+                    "--",
+                    "--all",
+                )
             except subprocess.CalledProcessError:
                 pass
         path.unlink()
@@ -620,9 +663,11 @@ def cmd_forget(args):
     rebuild_memory_md()
     git_commit(f"forget: {mem_id}")
 
+
 # ========================================
 # Command: learn
 # ========================================
+
 
 def cmd_learn(args):
     """Learn from URL or file and create a memory."""
@@ -669,10 +714,10 @@ def cmd_learn(args):
     # Auto-extract tags from content keywords
     if not tags:
         words = re.findall(r"\b[a-zA-Z]{4,}\b", content.lower())
-        word_freq = {}
+        word_freq: dict[str, int] = {}
         for w in words:
             word_freq[w] = word_freq.get(w, 0) + 1
-        tags = sorted(word_freq, key=word_freq.get, reverse=True)[:5]
+        tags = sorted(word_freq, key=lambda k: word_freq[k], reverse=True)[:5]
 
     meta = {
         "id": mem_id,
@@ -739,7 +784,7 @@ def _find_related(content: str, tags: list[str]) -> list[str]:
                 related.append(meta["id"])
         except Exception as e:
             from meme.log import get_logger
-            get_logger('meme').warning(f'Command error in {os.path.basename(path)}: {e}')
+
+            get_logger("meme").warning(f"Command error in {os.path.basename(p)}: {e}")
             continue
     return related[:10]  # Cap at 10 links
-

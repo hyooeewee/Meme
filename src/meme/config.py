@@ -1,9 +1,9 @@
 """Meme configuration management."""
+
 import tomllib
 
 from meme.constants import CONFIG_PATH
-from meme.models import MemeConfig
-
+from meme.models import ConfigValidationError, MemeConfig
 
 # ========================================
 # Configuration
@@ -11,13 +11,20 @@ from meme.models import MemeConfig
 
 
 def load_config() -> MemeConfig:
-    """Load user config merged with defaults."""
+    """Load user config merged with defaults.
+
+    Validates the config and raises ConfigValidationError for invalid values.
+    On invalid TOML syntax, falls back to defaults with a warning.
+    """
     config = MemeConfig()
     if CONFIG_PATH.exists():
         try:
             text = CONFIG_PATH.read_text(encoding="utf-8")
             user = tomllib.loads(text)
             config = MemeConfig.from_dict(user)
+            config.validate()
+        except ConfigValidationError:
+            raise
         except Exception as e:
             from meme.log import get_logger
 
@@ -34,14 +41,14 @@ def save_config(config: MemeConfig):
         lines.append(f"[{section}]")
         for key, val in values.items():
             if isinstance(val, bool):
-                lines.append(f'{key} = {str(val).lower()}')
+                lines.append(f"{key} = {str(val).lower()}")
             elif isinstance(val, str):
                 lines.append(f'{key} = "{val}"')
             elif isinstance(val, (int, float)):
-                lines.append(f'{key} = {val}')
+                lines.append(f"{key} = {val}")
             elif isinstance(val, list):
-                items = ', '.join(f'"{v}"' for v in val)
-                lines.append(f'{key} = [{items}]')
+                items = ", ".join(f'"{v}"' for v in val)
+                lines.append(f"{key} = [{items}]")
         lines.append("")
     CONFIG_PATH.write_text("\n".join(lines), encoding="utf-8")
 

@@ -1,31 +1,48 @@
 """Setup and init commands."""
+
 import datetime
 import json
 import os
 import re
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
-from meme.config import load_config
 from meme import __version__
-from meme.constants import (
-    MEME_HOME, BIN_DIR, META_DIR, ARCHIVE_DIR, WORKING_DIR,
-    COLD_DIR, VAULT_DIR, BACKUPS_DIR, MEMORY_MD_PATH,
-    VERSION_PATH, IMPORT_STATE_PATH, CONFLICT_LOG_PATH, DECAY_LOG_PATH,
-    CURRENT_SCHEMA,
-)
-from meme.utils import (
-    ensure_symlink, _get_package_resource_path,
-    save_index, save_graph, rebuild_memory_md, git_commit, save_memory, git_run,
-)
 from meme.commands.ingest import _do_import_claude, _do_import_claude_global
 from meme.commands.links import _generate_launchd_plist
+from meme.config import load_config
+from meme.constants import (
+    ARCHIVE_DIR,
+    BACKUPS_DIR,
+    BIN_DIR,
+    COLD_DIR,
+    CONFLICT_LOG_PATH,
+    CURRENT_SCHEMA,
+    DECAY_LOG_PATH,
+    IMPORT_STATE_PATH,
+    MEME_HOME,
+    MEMORY_MD_PATH,
+    META_DIR,
+    VAULT_DIR,
+    VERSION_PATH,
+    WORKING_DIR,
+)
+from meme.utils import (
+    _get_package_resource_path,
+    ensure_symlink,
+    git_commit,
+    git_run,
+    rebuild_memory_md,
+    save_graph,
+    save_index,
+    save_memory,
+)
 
 # ========================================
 # Command: setup
 # ========================================
+
 
 def cmd_setup(args):
     """Set up the Meme system."""
@@ -131,6 +148,7 @@ def cmd_setup(args):
     dream_reload = getattr(args, "dream_reload", False)
     if dream_install or dream_reload:
         import platform
+
         if platform.system() != "Darwin":
             print("Dream launchd setup is only supported on macOS.")
             print("Use cron on Linux: add '0 3 * * * meme dream' to your crontab")
@@ -193,10 +211,11 @@ def cmd_setup(args):
 def _setup_path(bin_str: str):
     """Auto-detect shell and add bin dir to PATH."""
     import platform
+
     if platform.system() == "Windows":
-        print(f"\n  [!] Windows detected. Please add to PATH manually:")
-        print(f"      setx PATH \"%PATH%;{bin_str}\"")
-        print(f"  Or run inside WSL for full support.")
+        print("\n  [!] Windows detected. Please add to PATH manually:")
+        print(f'      setx PATH "%PATH%;{bin_str}"')
+        print("  Or run inside WSL for full support.")
         return
 
     shell = os.environ.get("SHELL", "")
@@ -267,32 +286,38 @@ def _register_hooks():
 
     session_start_hook = {
         "matcher": "startup|resume|clear",
-        "hooks": [{
-            "type": "command",
-            "command": str(BIN_DIR / "meme-session-start.sh"),
-            "timeout": 10,
-            "statusMessage": "Loading Meme working memory...",
-        }],
+        "hooks": [
+            {
+                "type": "command",
+                "command": str(BIN_DIR / "meme-session-start.sh"),
+                "timeout": 10,
+                "statusMessage": "Loading Meme working memory...",
+            }
+        ],
     }
 
     query_hook = {
         "matcher": "*",
-        "hooks": [{
-            "type": "command",
-            "command": str(BIN_DIR / "meme-query.sh"),
-            "timeout": 15,
-            "statusMessage": "Querying Meme...",
-        }],
+        "hooks": [
+            {
+                "type": "command",
+                "command": str(BIN_DIR / "meme-query.sh"),
+                "timeout": 15,
+                "statusMessage": "Querying Meme...",
+            }
+        ],
     }
 
     session_end_hook = {
         "matcher": "clear|logout|prompt_input_exit",
-        "hooks": [{
-            "type": "command",
-            "command": str(BIN_DIR / "meme-session-end.sh"),
-            "timeout": 30,
-            "statusMessage": "Saving Meme session state...",
-        }],
+        "hooks": [
+            {
+                "type": "command",
+                "command": str(BIN_DIR / "meme-session-end.sh"),
+                "timeout": 30,
+                "statusMessage": "Saving Meme session state...",
+            }
+        ],
     }
 
     # Merge hooks (don't overwrite existing ones)
@@ -303,16 +328,14 @@ def _register_hooks():
     ]:
         existing = hooks.get(event, [])
         # Check if meme hook already registered
-        meme_registered = any(
-            any("meme" in h.get("command", "") for h in cfg.get("hooks", []))
-            for cfg in existing
-        )
+        meme_registered = any(any("meme" in h.get("command", "") for h in cfg.get("hooks", [])) for cfg in existing)
         if not meme_registered:
             existing.append(hook_config)
         hooks[event] = existing
 
     settings["hooks"] = hooks
     settings_path.write_text(json.dumps(settings, indent=2, ensure_ascii=False))
+
 
 # ========================================
 # Command: init
@@ -424,6 +447,7 @@ def cmd_init(args):
 # Command: uninstall
 # ========================================
 
+
 def cmd_uninstall(args):
     """Uninstall the Meme system."""
     if not MEME_HOME.exists():
@@ -439,7 +463,8 @@ def cmd_uninstall(args):
             for event in ["SessionStart", "UserPromptSubmit", "SessionEnd"]:
                 if event in hooks:
                     hooks[event] = [
-                        cfg for cfg in hooks[event]
+                        cfg
+                        for cfg in hooks[event]
                         if not any("meme" in h.get("command", "") for h in cfg.get("hooks", []))
                     ]
             settings["hooks"] = hooks
@@ -507,4 +532,3 @@ def _remove_path_entry():
             rc_file.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
         except Exception:
             pass
-

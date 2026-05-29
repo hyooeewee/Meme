@@ -1,13 +1,11 @@
 """Meme utility functions: frontmatter, file discovery, git, index/graph."""
+
 import datetime
 import hashlib
 import json
 import os
 import re
 import subprocess
-import sys
-import tarfile
-from collections import deque
 from pathlib import Path
 
 import yaml
@@ -17,6 +15,7 @@ def _get_package_resource_path(relative_path: str):
     """Get a path to a package resource, works in both package and script mode."""
     try:
         from importlib.resources import files
+
         ref = files("meme").joinpath(relative_path)
         p = Path(str(ref))
         if p.exists():
@@ -33,21 +32,26 @@ def _get_package_resource_path(relative_path: str):
 
 
 from meme.constants import (
-    MEME_HOME, WORKING_DIR, ARCHIVE_DIR, COLD_DIR, VAULT_DIR,
-    BACKUPS_DIR, META_DIR, BIN_DIR, INDEX_PATH, GRAPH_PATH,
-    VERSION_PATH, IMPORT_STATE_PATH, SESSION_HEAT_PATH,
-    CONFLICT_LOG_PATH, DECAY_LOG_PATH, FORGOTTEN_INDEX_PATH,
-    VERSION_CHECK_PATH, MEMORY_MD_PATH, CURRENT_SCHEMA,
-    TOKEN_BUDGET_WORKING, TOKEN_BUDGET_HOOK,
-    TIER_WORKING_THRESHOLD, TIER_ARCHIVE_THRESHOLD,
-    SUBDIRS, FRONTMATTER_KEYS,
+    ARCHIVE_DIR,
+    COLD_DIR,
+    FORGOTTEN_INDEX_PATH,
+    FRONTMATTER_KEYS,
+    GRAPH_PATH,
+    INDEX_PATH,
+    MEME_HOME,
+    MEMORY_MD_PATH,
+    SUBDIRS,
+    TIER_ARCHIVE_THRESHOLD,
+    TIER_WORKING_THRESHOLD,
+    VAULT_DIR,
+    WORKING_DIR,
 )
 from meme.models import MemoryMeta
-
 
 # ========================================
 # Utility: Frontmatter
 # ========================================
+
 
 def parse_frontmatter(text: str) -> tuple[dict, str]:
     """Parse YAML frontmatter from markdown text. Returns (meta, body)."""
@@ -107,6 +111,7 @@ def render_frontmatter(meta: dict, body: str) -> str:
 def load_memory(path: Path) -> tuple[MemoryMeta, str]:
     """Load a memory file, return (meta, body). Handles vault .enc files."""
     from meme.models import MemoryMeta
+
     if path.suffix == ".enc":
         result = load_vault_memory(path.stem)
         if result:
@@ -118,9 +123,8 @@ def load_memory(path: Path) -> tuple[MemoryMeta, str]:
     return MemoryMeta.from_dict(raw_meta), body
 
 
-def save_memory(path: Path, meta: dict, body: str):
+def save_memory(path: Path, meta: dict[str, object] | MemoryMeta, body: str) -> None:
     """Save a memory file with frontmatter."""
-    from meme.models import MemoryMeta
     path.parent.mkdir(parents=True, exist_ok=True)
     if isinstance(meta, MemoryMeta):
         meta = meta.to_dict()
@@ -136,6 +140,7 @@ def create_memory_record(meta: dict, body: str) -> Path:
 
     if sensitive:
         from meme.vault import save_vault_memory
+
         mem_path = save_vault_memory(mem_id, meta, body)
     else:
         mem_dir = get_memory_dir(mem_type, tier)
@@ -150,19 +155,23 @@ def create_memory_record(meta: dict, body: str) -> Path:
 
     rebuild_memory_md()
     git_commit(f"add: {mem_id}", [mem_path, INDEX_PATH, GRAPH_PATH, MEMORY_MD_PATH])
-    return mem_path
+    return mem_path  # type: ignore[no-any-return]
+
 
 # ========================================
 # Utility: Token counting
 # ========================================
 
+
 def count_tokens(text: str) -> int:
     """Rough token count: chars / 4."""
     return len(text) // 4 + 1
 
+
 # ========================================
 # Utility: ID generation
 # ========================================
+
 
 def generate_id(mem_type: str, slug: str = "") -> str:
     """Generate a memory ID like mem_20260526_slug."""
@@ -172,9 +181,11 @@ def generate_id(mem_type: str, slug: str = "") -> str:
     slug = re.sub(r"[^a-z0-9_]", "_", slug.lower())
     return f"mem_{date}_{slug}"
 
+
 # ========================================
 # Utility: Git
 # ========================================
+
 
 def git_run(*args, cwd: Path = MEME_HOME, check: bool = True) -> subprocess.CompletedProcess:
     """Run a git command in the meme repo."""
@@ -204,13 +215,15 @@ def git_commit(message: str, files: list[Path] | None = None):
     except subprocess.CalledProcessError:
         pass  # Silently skip git errors (e.g., empty commit)
 
+
 # ========================================
 # Utility: Index & Graph
 # ========================================
 
+
 def load_index() -> dict[str, object]:
     if INDEX_PATH.exists():
-        return json.loads(INDEX_PATH.read_text())
+        return json.loads(INDEX_PATH.read_text())  # type: ignore[no-any-return]
     return {}
 
 
@@ -220,7 +233,7 @@ def save_index(index: dict[str, object]) -> None:
 
 def load_graph() -> dict[str, object]:
     if GRAPH_PATH.exists():
-        return json.loads(GRAPH_PATH.read_text())
+        return json.loads(GRAPH_PATH.read_text())  # type: ignore[no-any-return]
     return {}
 
 
@@ -230,16 +243,18 @@ def save_graph(graph: dict[str, object]) -> None:
 
 def load_forgotten_index() -> dict[str, object]:
     if FORGOTTEN_INDEX_PATH.exists():
-        return json.loads(FORGOTTEN_INDEX_PATH.read_text())
+        return json.loads(FORGOTTEN_INDEX_PATH.read_text())  # type: ignore[no-any-return]
     return {}
 
 
 def save_forgotten_index(idx: dict):
     FORGOTTEN_INDEX_PATH.write_text(json.dumps(idx, indent=2, ensure_ascii=False))
 
+
 # ========================================
 # Utility: Symlink
 # ========================================
+
 
 def ensure_symlink(link_path: Path, target: Path):
     """Create or update a symlink."""
@@ -252,9 +267,11 @@ def ensure_symlink(link_path: Path, target: Path):
         return  # Don't overwrite real files
     link_path.symlink_to(target)
 
+
 # ========================================
 # Utility: File discovery
 # ========================================
+
 
 def find_all_memories(include_cold: bool = False, include_forgotten: bool = False) -> list[Path]:
     """Find all memory .md and vault .enc files."""
@@ -274,7 +291,7 @@ def find_all_memories(include_cold: bool = False, include_forgotten: bool = Fals
     return paths
 
 
-def _is_forgotten(path: Path, forgotten_ids: set) -> bool:
+def _is_forgotten(path: Path, forgotten_ids: set[str]) -> bool:
     # Vault .enc files: avoid decrypting just to check forgotten status
     if path.suffix == ".enc":
         return path.stem in forgotten_ids
@@ -313,11 +330,12 @@ VAULT_KEYRING_USER = "vault-key"
 def _touch_id_auth(reason: str = "Access Meme vault") -> bool:
     """Authenticate with Touch ID / Face ID on macOS. Returns True if authenticated."""
     import platform
+
     if platform.system() != "Darwin":
         return False
     try:
-        from LocalAuthentication import LAContext
         import Foundation
+        from LocalAuthentication import LAContext
 
         context = LAContext.alloc().init()
         avail, _ = context.canEvaluatePolicy_error_(1, None)
@@ -360,17 +378,20 @@ def _get_vault_key(require_auth: bool = True) -> bytes:
     interrupting the user.
     """
     import platform
+
     if require_auth and platform.system() == "Darwin":
         # Prompt Touch ID / password before accessing keychain
         if not _touch_id_auth("Authenticate to access Meme vault"):
             # Touch ID cancelled or unavailable — still try keyring
             pass
     import keyring
+
     key_str = keyring.get_password(VAULT_KEYRING_SERVICE, VAULT_KEYRING_USER)
     if key_str:
         return key_str.encode("utf-8")
     # Generate new key (Fernet key is already URL-safe base64 encoded)
     from cryptography.fernet import Fernet
+
     key = Fernet.generate_key()
     keyring.set_password(VAULT_KEYRING_SERVICE, VAULT_KEYRING_USER, key.decode())
     return key
@@ -379,6 +400,7 @@ def _get_vault_key(require_auth: bool = True) -> bytes:
 def vault_encrypt(plaintext: str) -> bytes:
     """Encrypt a string for vault storage."""
     from cryptography.fernet import Fernet
+
     key = _get_vault_key(require_auth=False)
     f = Fernet(key)
     return f.encrypt(plaintext.encode("utf-8"))
@@ -387,6 +409,7 @@ def vault_encrypt(plaintext: str) -> bytes:
 def vault_decrypt(ciphertext: bytes) -> str:
     """Decrypt vault ciphertext."""
     from cryptography.fernet import Fernet
+
     key = _get_vault_key(require_auth=True)
     f = Fernet(key)
     return f.decrypt(ciphertext).decode("utf-8")
@@ -405,7 +428,7 @@ def save_vault_memory(mem_id: str, meta: dict, body: str):
     # Try to separate description from secret value.
     # E.g. "我的 API token 是 sk-live-xxx" -> desc="我的 API token", secret="sk-live-xxx"
     # E.g. "API token: sk-live-xxx"        -> desc="API token",      secret="sk-live-xxx"
-    m = re.search(r'^(.{3,200}?)\s*(?:是|为|:|：|=)\s*(.+)$', body)
+    m = re.search(r"^(.{3,200}?)\s*(?:是|为|:|：|=)\s*(.+)$", body)
     if m:
         description = m.group(1).strip()
         secret_value = m.group(2).strip()
@@ -467,12 +490,13 @@ def parse_memory_string(text: str) -> tuple[dict, str]:
 # Utility: Tier classification
 # ========================================
 
-def get_tier(meta: dict) -> str:
+
+def get_tier(meta: dict[str, object] | MemoryMeta) -> str:
     """Get the tier of a memory based on importance."""
     imp = meta.get("importance", 0.5)
-    if imp >= TIER_WORKING_THRESHOLD:
+    if isinstance(imp, (int, float)) and imp >= TIER_WORKING_THRESHOLD:
         return "working"
-    elif imp >= TIER_ARCHIVE_THRESHOLD:
+    elif isinstance(imp, (int, float)) and imp >= TIER_ARCHIVE_THRESHOLD:
         return "archive"
     return "cold"
 
@@ -485,14 +509,21 @@ def get_memory_dir(mem_type: str, tier: str = "archive") -> Path:
         return COLD_DIR
     return SUBDIRS.get(mem_type, ARCHIVE_DIR / "feedback")
 
+
 # ========================================
 # Utility: MEMORY.md rebuild
 # ========================================
 
+
 def rebuild_memory_md():
     """Rebuild the MEMORY.md index file."""
     working = []
-    archive = {"projects": [], "feedback": [], "knowledge": [], "corrections": []}
+    archive: dict[str, list[tuple[str, list[str]]]] = {
+        "projects": [],
+        "feedback": [],
+        "knowledge": [],
+        "corrections": [],
+    }
 
     for p in WORKING_DIR.glob("*.md"):
         try:
@@ -535,24 +566,28 @@ def rebuild_memory_md():
             lines.append(f"- {category.title()}: " + " | ".join(f"[[{name}]]" for name, _ in items))
     lines.append("")
 
-    lines.extend([
-        "## Query Guide",
-        "",
-        "When you need to recall something not in Working Memory:",
-        '1. Search archive by keyword: `meme search "keyword"`',
-        "2. Load the hit file, then follow its `[[links]]` for context",
-        "3. 1st-degree links: full load. 2nd-degree: title only. 3rd+: ignore.",
-    ])
+    lines.extend(
+        [
+            "## Query Guide",
+            "",
+            "When you need to recall something not in Working Memory:",
+            '1. Search archive by keyword: `meme search "keyword"`',
+            "2. Load the hit file, then follow its `[[links]]` for context",
+            "3. 1st-degree links: full load. 2nd-degree: title only. 3rd+: ignore.",
+        ]
+    )
 
     MEMORY_MD_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
 
 
 # ========================================
 # Index & Graph helpers
 # ========================================
 
-def _update_index_entry(mem_id: str, meta: dict, path: Path, index: dict | None = None):
+
+def _update_index_entry(
+    mem_id: str, meta: dict[str, object] | MemoryMeta, path: Path, index: dict[str, object] | None = None
+) -> None:
     """Update a single entry in the index."""
     if index is None:
         index = load_index()
@@ -573,26 +608,29 @@ def _remove_from_index(mem_id: str):
     save_index(index)
 
 
-def _add_to_graph(mem_id: str, links: list[str]):
+def _add_to_graph(mem_id: str, links: list[str]) -> None:
     """Add links to the graph (bidirectional)."""
     graph = load_graph()
-    existing = set(graph.get(mem_id, []))
+    existing_raw = graph.get(mem_id, [])
+    existing: set[str] = set(existing_raw) if hasattr(existing_raw, "__iter__") else set()
     for link in links:
         existing.add(link)
         # Bidirectional
-        reverse = set(graph.get(link, []))
+        reverse_raw = graph.get(link, [])
+        reverse: set[str] = set(reverse_raw) if hasattr(reverse_raw, "__iter__") else set()
         reverse.add(mem_id)
         graph[link] = list(reverse)
     graph[mem_id] = list(existing)
     save_graph(graph)
 
 
-def _remove_from_graph(mem_id: str):
+def _remove_from_graph(mem_id: str) -> None:
     """Remove a node from the graph."""
     graph = load_graph()
-    links = graph.pop(mem_id, [])
+    links_raw = graph.pop(mem_id, [])
+    links: list[str] = list(links_raw) if hasattr(links_raw, "__iter__") else []
     for link in links:
         if link in graph:
-            graph[link] = [l for l in graph[link] if l != mem_id]
+            graph_links_raw = graph[link]
+            graph[link] = [l for l in graph_links_raw if l != mem_id]  # type: ignore[attr-defined]
     save_graph(graph)
-

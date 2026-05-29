@@ -2,7 +2,6 @@
 
 import logging
 import sys
-from pathlib import Path
 
 from meme.constants import MEME_HOME
 

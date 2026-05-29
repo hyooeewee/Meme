@@ -1,9 +1,7 @@
 """Meme — A centralized, tiered memory system with knowledge graph."""
 
-import sys
-from pathlib import Path
-
 import tomllib
+from pathlib import Path
 
 # Prefer pyproject.toml (source checkout) so edits are picked up immediately.
 # Fall back to importlib.metadata when installed as a wheel.

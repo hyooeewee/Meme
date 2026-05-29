@@ -1,42 +1,30 @@
 """Meme CLI commands."""
+
 import datetime
 import json
 import os
-import re
-import sys
-from pathlib import Path
 
 from meme.constants import (
-    MEME_HOME, WORKING_DIR, ARCHIVE_DIR, COLD_DIR, VAULT_DIR,
-    BACKUPS_DIR, META_DIR, BIN_DIR,
-    FRONTMATTER_KEYS, SUBDIRS,
-    TIER_WORKING_THRESHOLD, TIER_ARCHIVE_THRESHOLD,
-    TOKEN_BUDGET_WORKING, TOKEN_BUDGET_HOOK,
     DECAY_LOG_PATH,
+    TIER_WORKING_THRESHOLD,
 )
-from meme.config import load_config, save_config, get_config_value, set_config_value
 from meme.utils import (
-    parse_frontmatter, render_frontmatter,
-    load_memory, save_memory, count_tokens, generate_id,
-    git_run, git_commit,
-    load_index, save_index, load_graph, save_graph,
-    load_forgotten_index, save_forgotten_index,
-    ensure_symlink, find_all_memories, _is_forgotten,
-    find_memory_by_id, get_tier, get_memory_dir,
-    rebuild_memory_md, _update_index_entry,
-    _remove_from_index, _add_to_graph, _remove_from_graph,
-    _get_package_resource_path,
-)
-from meme.vault import (
-    _touch_id_auth, _get_vault_key,
-    vault_encrypt, vault_decrypt,
-    save_vault_memory, load_vault_memory,
-    save_memory_to_string, parse_memory_string,
+    _add_to_graph,
+    _update_index_entry,
+    find_all_memories,
+    find_memory_by_id,
+    get_memory_dir,
+    get_tier,
+    git_commit,
+    load_memory,
+    rebuild_memory_md,
+    save_memory,
 )
 
 # ========================================
 # Command: decay
 # ========================================
+
 
 def cmd_decay(args):
     """Run importance decay scan."""
@@ -63,7 +51,7 @@ def cmd_decay(args):
             old_imp = meta.get("importance", 0.5)
             # Correction memories decay slower
             decay_rate = 0.975 if meta.get("type") == "correction" else 0.95
-            new_imp = old_imp * (decay_rate ** days)
+            new_imp = old_imp * (decay_rate**days)
             new_imp = round(new_imp, 4)
 
             if new_imp != old_imp:
@@ -83,20 +71,26 @@ def cmd_decay(args):
 
                     # Log decay
                     with open(DECAY_LOG_PATH, "a") as f:
-                        f.write(json.dumps({
-                            "ts": datetime.datetime.now().isoformat(),
-                            "id": meta["id"],
-                            "old": old_imp,
-                            "new": new_imp,
-                            "days": days,
-                        }) + "\n")
+                        f.write(
+                            json.dumps(
+                                {
+                                    "ts": datetime.datetime.now().isoformat(),
+                                    "id": meta["id"],
+                                    "old": old_imp,
+                                    "new": new_imp,
+                                    "days": days,
+                                }
+                            )
+                            + "\n"
+                        )
 
                 decayed += 1
                 print(f"  {meta['id']}: {old_imp:.3f} -> {new_imp:.3f} ({days} days)")
 
         except Exception as e:
             from meme.log import get_logger
-            get_logger('meme').warning(f'Command error in {os.path.basename(p)}: {e}')
+
+            get_logger("meme").warning(f"Command error in {os.path.basename(p)}: {e}")
             continue
 
     if not dry_run and decayed:
@@ -106,9 +100,11 @@ def cmd_decay(args):
     action = "Would decay" if dry_run else "Decayed"
     print(f"\n{action} {decayed} memories.")
 
+
 # ========================================
 # Command: promote / demote / warm
 # ========================================
+
 
 def cmd_promote(args):
     """Manually promote a memory to working tier."""
@@ -183,9 +179,11 @@ def cmd_warm(args):
     git_commit(f"warm: {mem_id}")
     print(f"Warmed {mem_id} to archive (importance={meta['importance']:.2f}).")
 
+
 # ========================================
 # Command: link
 # ========================================
+
 
 def cmd_link(args):
     """Create a link between two memories."""
@@ -201,8 +199,10 @@ def cmd_link(args):
     # Also update frontmatter links
     for mid in [id_a, id_b]:
         path = find_memory_by_id(mid)
+        if path is None:
+            continue
         meta, body = load_memory(path)
-        links = meta.get("links", [])
+        links = list(meta.get("links", []))
         other = id_b if mid == id_a else id_a
         if other not in links:
             links.append(other)
@@ -211,5 +211,3 @@ def cmd_link(args):
 
     git_commit(f"link: {id_a} <-> {id_b}")
     print(f"Linked: {id_a} <-> {id_b}")
-
-

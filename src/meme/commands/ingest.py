@@ -1,23 +1,33 @@
 """Ingestion commands."""
+
 import datetime
-import json
 import os
 import re
-import sys
 from pathlib import Path
 
 from meme.constants import (
-    ARCHIVE_DIR, WORKING_DIR, SUBDIRS, INDEX_PATH, GRAPH_PATH, MEMORY_MD_PATH,
+    WORKING_DIR,
 )
 from meme.utils import (
-    generate_id, git_commit, find_all_memories, load_memory, parse_frontmatter,
-    find_memory_by_id, get_tier, get_memory_dir, save_memory, _update_index_entry,
-    rebuild_memory_md, create_memory_record, _add_to_graph,
+    _add_to_graph,
+    _update_index_entry,
+    create_memory_record,
+    find_all_memories,
+    find_memory_by_id,
+    generate_id,
+    get_memory_dir,
+    get_tier,
+    git_commit,
+    load_memory,
+    parse_frontmatter,
+    rebuild_memory_md,
+    save_memory,
 )
 
 # ========================================
 # Command: learn
 # ========================================
+
 
 def cmd_learn(args):
     """Learn from URL or file and create a memory."""
@@ -64,10 +74,10 @@ def cmd_learn(args):
     # Auto-extract tags from content keywords
     if not tags:
         words = re.findall(r"\b[a-zA-Z]{4,}\b", content.lower())
-        word_freq = {}
+        word_freq: dict[str, int] = {}
         for w in words:
             word_freq[w] = word_freq.get(w, 0) + 1
-        tags = sorted(word_freq, key=word_freq.get, reverse=True)[:5]
+        tags = sorted(word_freq, key=lambda k: word_freq[k], reverse=True)[:5]
 
     meta = {
         "id": mem_id,
@@ -93,7 +103,7 @@ def cmd_learn(args):
 
     # Truncate body for storage
     body = content[:5000] if len(content) > 5000 else content
-    mem_path = create_memory_record(meta, body)
+    create_memory_record(meta, body)
 
     print(f"Learned: {mem_id}")
     print(f"  Tags: {', '.join(tags)}")
@@ -126,13 +136,16 @@ def _find_related(content: str, tags: list[str]) -> list[str]:
                 related.append(meta["id"])
         except Exception as e:
             from meme.log import get_logger
-            get_logger('meme').warning(f'Command error in {os.path.basename(path)}: {e}')
+
+            get_logger("meme").warning(f"Command error in {os.path.basename(p)}: {e}")
             continue
     return related[:10]  # Cap at 10 links
+
 
 # ========================================
 # Command: import
 # ========================================
+
 
 def cmd_import(args):
     """Import memories from external sources."""
@@ -328,11 +341,11 @@ def _do_import_codex(codex_path: str | None):
             imported += 1
         except Exception as e:
             from meme.log import get_logger
-            get_logger('meme').warning(f'Command error in {os.path.basename(path)}: {e}')
+
+            get_logger("meme").warning(f"Command error in {os.path.basename(md_file)}: {e}")
             continue
 
     if imported:
         rebuild_memory_md()
         git_commit(f"import: {imported} memories from Codex")
     print(f"Imported {imported} memories from Codex.")
-

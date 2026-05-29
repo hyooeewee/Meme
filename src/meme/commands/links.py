@@ -1,4 +1,5 @@
 """Link and consolidation commands."""
+
 import datetime
 import io
 import json
@@ -8,18 +9,27 @@ import subprocess
 import sys
 from pathlib import Path
 
+from meme.config import get_config_value, load_config, save_config, set_config_value
 from meme.constants import (
-    MEME_HOME, META_DIR, WORKING_DIR, ARCHIVE_DIR, COLD_DIR, CONFIG_PATH,
+    CONFIG_PATH,
+    MEME_HOME,
+    META_DIR,
 )
-from meme.config import load_config, save_config, get_config_value, set_config_value
 from meme.utils import (
-    load_memory, save_memory, find_all_memories, find_memory_by_id,
-    load_graph, save_graph, _add_to_graph, rebuild_memory_md, git_commit,
+    _add_to_graph,
+    find_all_memories,
+    find_memory_by_id,
+    git_commit,
+    load_memory,
+    rebuild_memory_md,
+    save_graph,
+    save_memory,
 )
 
 # ========================================
 # Command: link
 # ========================================
+
 
 def cmd_link(args):
     """Create a link between two memories."""
@@ -35,8 +45,10 @@ def cmd_link(args):
     # Also update frontmatter links
     for mid in [id_a, id_b]:
         path = find_memory_by_id(mid)
+        if path is None:
+            continue
         meta, body = load_memory(path)
-        links = meta.get("links", [])
+        links = list(meta.get("links", []))
         other = id_b if mid == id_a else id_a
         if other not in links:
             links.append(other)
@@ -61,7 +73,7 @@ def cmd_suggest_links(args):
             continue
 
     for i, (meta_a, body_a) in enumerate(memories):
-        for meta_b, body_b in memories[i+1:]:
+        for meta_b, body_b in memories[i + 1 :]:
             if meta_a.get("id") == meta_b.get("id"):
                 continue
             # Check if already linked
@@ -73,12 +85,14 @@ def cmd_suggest_links(args):
             words_b = set(re.findall(r"\b[a-z]{4,}\b", body_b.lower()))
             common = words_a.intersection(words_b)
             if len(common) >= 3:
-                suggestions.append({
-                    "a": meta_a["id"],
-                    "b": meta_b["id"],
-                    "common_words": len(common),
-                    "sample": list(common)[:5],
-                })
+                suggestions.append(
+                    {
+                        "a": meta_a["id"],
+                        "b": meta_b["id"],
+                        "common_words": len(common),
+                        "sample": list(common)[:5],
+                    }
+                )
 
     suggestions.sort(key=lambda x: -x["common_words"])
 
@@ -91,31 +105,205 @@ def cmd_suggest_links(args):
         print(f"  {s['a']} <-> {s['b']}  (common words: {s['common_words']})")
         print(f"    Sample: {', '.join(s['sample'])}")
 
+
 # ========================================
 # Command: daydream
 # ========================================
 
 _DAYDREAM_STOPS = {
-    "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
-    "have", "has", "had", "do", "does", "did", "will", "would", "could",
-    "should", "may", "might", "shall", "can", "need", "must",
-    "i", "me", "my", "we", "our", "you", "your", "he", "she", "it",
-    "they", "them", "this", "that", "these", "those",
-    "and", "or", "but", "if", "then", "else", "when", "at", "by", "for",
-    "with", "about", "against", "between", "through", "during", "before",
-    "after", "above", "below", "to", "from", "up", "down", "in", "out",
-    "on", "off", "over", "under", "again", "further", "than", "once",
-    "here", "there", "why", "how", "all", "each", "every", "both", "few",
-    "more", "most", "other", "some", "such", "no", "nor", "not", "only",
-    "own", "same", "so", "very", "just", "because", "as", "until", "while",
-    "of", "into", "what", "which", "who", "whom", "whose",
-    "help", "please", "want", "know", "think", "make", "get", "go", "come",
-    "的", "了", "在", "是", "我", "有", "和", "就", "不", "人", "都", "一", "一个", "上", "也",
-    "很", "到", "说", "要", "去", "你", "会", "着", "没有", "看", "好", "自己", "这", "那",
-    "使用", "进行", "通过", "需要", "可以", "应该", "我们", "他们", "这个", "那个",
-    "这些", "那些", "什么", "怎么", "为什么", "哪里", "时候", "现在", "然后", "但是",
-    "因为", "所以", "如果", "虽然", "已经", "正在", "将要", "好的", "是的", "对的", "请",
-    "帮", "他", "她", "它", "吗", "呢", "吧", "给", "把", "被", "让", "对", "向", "从",
+    "the",
+    "a",
+    "an",
+    "is",
+    "are",
+    "was",
+    "were",
+    "be",
+    "been",
+    "being",
+    "have",
+    "has",
+    "had",
+    "do",
+    "does",
+    "did",
+    "will",
+    "would",
+    "could",
+    "should",
+    "may",
+    "might",
+    "shall",
+    "can",
+    "need",
+    "must",
+    "i",
+    "me",
+    "my",
+    "we",
+    "our",
+    "you",
+    "your",
+    "he",
+    "she",
+    "it",
+    "they",
+    "them",
+    "this",
+    "that",
+    "these",
+    "those",
+    "and",
+    "or",
+    "but",
+    "if",
+    "then",
+    "else",
+    "when",
+    "at",
+    "by",
+    "for",
+    "with",
+    "about",
+    "against",
+    "between",
+    "through",
+    "during",
+    "before",
+    "after",
+    "above",
+    "below",
+    "to",
+    "from",
+    "up",
+    "down",
+    "in",
+    "out",
+    "on",
+    "off",
+    "over",
+    "under",
+    "again",
+    "further",
+    "than",
+    "once",
+    "here",
+    "there",
+    "why",
+    "how",
+    "all",
+    "each",
+    "every",
+    "both",
+    "few",
+    "more",
+    "most",
+    "other",
+    "some",
+    "such",
+    "no",
+    "nor",
+    "not",
+    "only",
+    "own",
+    "same",
+    "so",
+    "very",
+    "just",
+    "because",
+    "as",
+    "until",
+    "while",
+    "of",
+    "into",
+    "what",
+    "which",
+    "who",
+    "whom",
+    "whose",
+    "help",
+    "please",
+    "want",
+    "know",
+    "think",
+    "make",
+    "get",
+    "go",
+    "come",
+    "的",
+    "了",
+    "在",
+    "是",
+    "我",
+    "有",
+    "和",
+    "就",
+    "不",
+    "人",
+    "都",
+    "一",
+    "一个",
+    "上",
+    "也",
+    "很",
+    "到",
+    "说",
+    "要",
+    "去",
+    "你",
+    "会",
+    "着",
+    "没有",
+    "看",
+    "好",
+    "自己",
+    "这",
+    "那",
+    "使用",
+    "进行",
+    "通过",
+    "需要",
+    "可以",
+    "应该",
+    "我们",
+    "他们",
+    "这个",
+    "那个",
+    "这些",
+    "那些",
+    "什么",
+    "怎么",
+    "为什么",
+    "哪里",
+    "时候",
+    "现在",
+    "然后",
+    "但是",
+    "因为",
+    "所以",
+    "如果",
+    "虽然",
+    "已经",
+    "正在",
+    "将要",
+    "好的",
+    "是的",
+    "对的",
+    "请",
+    "帮",
+    "他",
+    "她",
+    "它",
+    "吗",
+    "呢",
+    "吧",
+    "给",
+    "把",
+    "被",
+    "让",
+    "对",
+    "向",
+    "从",
 }
 
 
@@ -183,7 +371,7 @@ def _daydream_cluster(memories: list[dict], threshold: float) -> list[list[dict]
             if _memory_similarity(memories[i], memories[j]) >= threshold:
                 union(i, j)
 
-    clusters = {}
+    clusters: dict[int, list[dict]] = {}
     for i in range(n):
         clusters.setdefault(find(i), []).append(memories[i])
     return [members for members in clusters.values() if len(members) > 1]
@@ -191,17 +379,17 @@ def _daydream_cluster(memories: list[dict], threshold: float) -> list[list[dict]
 
 def _cluster_keywords(cluster: list[dict]) -> list[str]:
     """Extract top keywords for a cluster."""
-    all_words = []
+    all_words: list[str] = []
     for m in cluster:
         all_words.extend(_extract_significant_words(m.get("body", "")))
     if not all_words:
         return []
     from collections import Counter
+
     return [w for w, _ in Counter(all_words).most_common(5)]
 
 
-def _daydream_report(memories: list[dict], clusters: list[list[dict]],
-                     link_suggestions: list[dict], dry_run: bool):
+def _daydream_report(memories: list[dict], clusters: list[list[dict]], link_suggestions: list[dict], dry_run: bool):
     """Print consolidation report."""
     clustered_ids = {m["id"] for c in clusters for m in c}
     orphans = [m for m in memories if m["id"] not in clustered_ids]
@@ -255,13 +443,13 @@ def cmd_daydream(args):
     dd_cfg = config.get("daydream", {})
     dry_run = getattr(args, "dry_run", False)
     mode = getattr(args, "mode", None) or getattr(dd_cfg, "default_mode", "all")
-    threshold = getattr(args, "threshold", None)
-    if threshold is None:
+    threshold: float = getattr(args, "threshold", None) or 0.0
+    if not threshold:
         threshold = getattr(dd_cfg, "threshold", 0.4)
     apply_links = getattr(args, "apply", False) or getattr(dd_cfg, "auto_apply", False)
     merge = getattr(args, "merge", False) or getattr(dd_cfg, "merge", False)
 
-    print(f"Daydream — memory consolidation")
+    print("Daydream — memory consolidation")
     print(f"  mode: {mode}, threshold: {threshold}, dry_run: {dry_run}")
     print()
 
@@ -273,15 +461,17 @@ def cmd_daydream(args):
             meta, body = load_memory(p)
             if meta.get("forgotten"):
                 continue
-            memories.append({
-                "path": p,
-                "meta": meta,
-                "body": body,
-                "id": meta.get("id", p.stem),
-                "type": meta.get("type", "feedback"),
-                "tags": list(meta.get("tags", [])),
-                "links": set(meta.get("links", [])),
-            })
+            memories.append(
+                {
+                    "path": p,
+                    "meta": meta,
+                    "body": body,
+                    "id": meta.get("id", p.stem),
+                    "type": meta.get("type", "feedback"),
+                    "tags": list(meta.get("tags", [])),
+                    "links": set(meta.get("links", [])),
+                }
+            )
         except Exception:
             continue
 
@@ -292,24 +482,28 @@ def cmd_daydream(args):
     print(f"Loaded {len(memories)} memories\n")
 
     # Phase 1: Cluster
-    clusters = []
+    clusters: list[list[dict]] = []
     if mode in ("all", "cluster"):
         clusters = _daydream_cluster(memories, threshold)
 
     # Save cluster info for semantic retrieval in hooks
     if clusters:
-        cluster_data = {
+        cluster_data: dict[str, object] = {
             "generated_at": datetime.datetime.now().isoformat(),
             "clusters": [],
         }
         for cluster in clusters:
             keywords = _cluster_keywords(cluster)
             core = max(cluster, key=lambda m: m["meta"].get("importance", 0.5))
-            cluster_data["clusters"].append({
-                "keywords": keywords,
-                "core_id": core["id"],
-                "members": [m["id"] for m in cluster],
-            })
+            clusters_list = cluster_data["clusters"]
+            if hasattr(clusters_list, "append"):
+                clusters_list.append(
+                    {
+                        "keywords": keywords,
+                        "core_id": core["id"],
+                        "members": [m["id"] for m in cluster],
+                    }
+                )
         clusters_path = Path(MEME_HOME) / "meta" / "clusters.json"
         clusters_path.write_text(json.dumps(cluster_data, indent=2, ensure_ascii=False), encoding="utf-8")
 
@@ -319,29 +513,33 @@ def cmd_daydream(args):
     if mode in ("all", "link"):
         for cluster in clusters:
             for i, m1 in enumerate(cluster):
-                for m2 in cluster[i + 1:]:
+                for m2 in cluster[i + 1 :]:
                     pair = tuple(sorted([m1["id"], m2["id"]]))
                     if m2["id"] not in m1["links"] and m1["id"] not in m2["links"]:
                         if pair not in seen_pairs:
                             seen_pairs.add(pair)
-                            link_suggestions.append({
-                                "a": m1["id"],
-                                "b": m2["id"],
-                                "reason": f"cluster: {_cluster_keywords(cluster)[:3]}",
-                            })
+                            link_suggestions.append(
+                                {
+                                    "a": m1["id"],
+                                    "b": m2["id"],
+                                    "reason": f"cluster: {_cluster_keywords(cluster)[:3]}",
+                                }
+                            )
 
         for i, m1 in enumerate(memories):
-            for m2 in memories[i + 1:]:
+            for m2 in memories[i + 1 :]:
                 if m1["id"] in m2.get("body", "") or m2["id"] in m1.get("body", ""):
                     pair = tuple(sorted([m1["id"], m2["id"]]))
                     if pair not in seen_pairs:
                         if m2["id"] not in m1["links"] and m1["id"] not in m2["links"]:
                             seen_pairs.add(pair)
-                            link_suggestions.append({
-                                "a": m1["id"],
-                                "b": m2["id"],
-                                "reason": "explicit cross-reference",
-                            })
+                            link_suggestions.append(
+                                {
+                                    "a": m1["id"],
+                                    "b": m2["id"],
+                                    "reason": "explicit cross-reference",
+                                }
+                            )
 
     _daydream_report(memories, clusters, link_suggestions, dry_run)
 
@@ -405,6 +603,7 @@ def cmd_daydream(args):
                     m["path"].unlink()
                     # Remove from index
                     from meme.utils import _remove_from_index
+
                     _remove_from_index(m["id"])
                 except Exception:
                     continue
@@ -433,7 +632,7 @@ def cmd_daydream(args):
                     graph[mem_id] = sorted(set(meta.get("links", [])))
             except Exception:
                 continue
-        save_graph(graph)
+        save_graph(graph)  # type: ignore[arg-type]
         rebuild_memory_md()
         git_commit("daydream: consolidated memory graph")
 
@@ -510,17 +709,17 @@ def _cron_to_launchd_dict(schedule: str) -> dict:
     if len(parts) != 5:
         return {"Hour": 3, "Minute": 0}
     minute, hour, day, month, weekday = parts
-    result = {}
+    result: dict[str, int | list[int]] = {}
 
-    def _parse_field(field: str, key: str, rng: tuple):
+    def _parse_field(field: str, key: str, rng: tuple[int, int]) -> None:
         if field == "*":
             return
         if "," in field:
-            vals = []
+            vals: list[int] = []
             for p in field.split(","):
                 if "-" in p:
-                    start, end = p.split("-", 1)
-                    vals.extend(range(int(start), int(end) + 1))
+                    start_s, end_s = p.split("-", 1)
+                    vals.extend(range(int(start_s), int(end_s) + 1))
                 elif "/" in p:
                     base, step = p.split("/", 1)
                     start = int(base) if base != "*" else rng[0]
@@ -530,8 +729,8 @@ def _cron_to_launchd_dict(schedule: str) -> dict:
             result[key] = vals[0] if len(vals) == 1 else vals
             return
         if "-" in field:
-            start, end = field.split("-", 1)
-            result[key] = list(range(int(start), int(end) + 1))
+            start_s, end_s = field.split("-", 1)
+            result[key] = list(range(int(start_s), int(end_s) + 1))
             return
         if "/" in field:
             base, step = field.split("/", 1)
@@ -569,7 +768,7 @@ def _generate_launchd_plist(schedule: str) -> str:
             interval_xml += f"        <key>{key}</key>\n"
             interval_xml += f"        <integer>{val}</integer>\n"
 
-    plist = f'''<?xml version="1.0" encoding="UTF-8"?>
+    plist = f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
@@ -590,7 +789,7 @@ def _generate_launchd_plist(schedule: str) -> str:
     <key>RunAtLoad</key>
     <false/>
 </dict>
-</plist>'''
+</plist>"""
     return plist
 
 
@@ -619,7 +818,10 @@ def cmd_dream(args):
 
     # Reuse daydream logic
     class FakeArgs:
-        pass
+        dry_run: bool = False
+        mode: str = "all"
+        threshold: float = 0.4
+        apply: bool = True
 
     fake = FakeArgs()
     fake.dry_run = False
@@ -655,5 +857,3 @@ def cmd_dream(args):
     last_dream_path.write_text(today, encoding="utf-8")
 
     print(f"Dream complete. Report: {report_path}")
-
-

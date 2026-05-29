@@ -1,47 +1,44 @@
 """Meme CLI commands."""
+
 import datetime
 import json
 import os
-import re
-import sys
+import tarfile
 from pathlib import Path
 
 from meme.constants import (
-    MEME_HOME, WORKING_DIR, ARCHIVE_DIR, COLD_DIR, VAULT_DIR,
-    BACKUPS_DIR, META_DIR, BIN_DIR, MEMORY_MD_PATH,
-    FRONTMATTER_KEYS, SUBDIRS,
-    TIER_WORKING_THRESHOLD, TIER_ARCHIVE_THRESHOLD,
-    TOKEN_BUDGET_WORKING, TOKEN_BUDGET_HOOK,
+    BACKUPS_DIR,
+    MEME_HOME,
+    MEMORY_MD_PATH,
+    TOKEN_BUDGET_WORKING,
+    WORKING_DIR,
 )
-from meme.config import load_config, save_config, get_config_value, set_config_value
 from meme.utils import (
-    parse_frontmatter, render_frontmatter,
-    load_memory, save_memory, count_tokens, generate_id,
-    git_run, git_commit,
-    load_index, save_index, load_graph, save_graph,
-    load_forgotten_index, save_forgotten_index,
-    ensure_symlink, find_all_memories, _is_forgotten,
-    find_memory_by_id, get_tier, get_memory_dir,
-    rebuild_memory_md, _update_index_entry,
-    _remove_from_index, _add_to_graph, _remove_from_graph,
-    _get_package_resource_path,
-)
-from meme.vault import (
-    _touch_id_auth, _get_vault_key,
-    vault_encrypt, vault_decrypt,
-    save_vault_memory, load_vault_memory,
-    save_memory_to_string, parse_memory_string,
+    _update_index_entry,
+    count_tokens,
+    ensure_symlink,
+    find_all_memories,
+    find_memory_by_id,
+    generate_id,
+    get_tier,
+    git_commit,
+    load_graph,
+    load_memory,
+    rebuild_memory_md,
+    save_graph,
+    save_index,
+    save_memory,
 )
 
 # ========================================
 # Command: doctor
 # ========================================
 
+
 def cmd_doctor(args):
     """Health check and auto-fix."""
     fix = args.fix or False
-    ask = args.ask or False
-    issues = []
+    issues: list[tuple[object, ...]] = []
 
     # Check symlinks
     claude_projects = Path.home() / ".claude" / "projects"
@@ -72,24 +69,26 @@ def cmd_doctor(args):
                 issues.append(("missing_frontmatter", str(p), missing))
                 if fix:
                     now = datetime.date.today().strftime("%Y-%m-%d")
-                    meta.setdefault("id", generate_id("unknown", p.stem))
-                    meta.setdefault("type", "feedback")
-                    meta.setdefault("importance", 0.5)
-                    meta.setdefault("created", now)
-                    save_memory(p, meta, body)
+                    meta_dict = meta.to_dict()
+                    meta_dict.setdefault("id", generate_id("unknown", p.stem))
+                    meta_dict.setdefault("type", "feedback")
+                    meta_dict.setdefault("importance", 0.5)
+                    meta_dict.setdefault("created", now)
+                    save_memory(p, meta_dict, body)
                     print(f"  Fixed frontmatter: {p}")
         except Exception as e:
             issues.append(("corrupt_file", str(p), str(e)))
 
     # Check graph consistency
     graph = load_graph()
-    for mem_id, links in graph.items():
+    for mem_id, links_raw in graph.items():
         if not find_memory_by_id(mem_id):
             issues.append(("orphan_graph_node", mem_id))
             if fix:
                 del graph[mem_id]
                 save_graph(graph)
                 print(f"  Removed orphan from graph: {mem_id}")
+        links = list(links_raw) if hasattr(links_raw, "__iter__") else []
         for linked_id in links:
             if not find_memory_by_id(linked_id):
                 issues.append(("broken_graph_link", mem_id, linked_id))
@@ -102,7 +101,8 @@ def cmd_doctor(args):
             total_tokens += count_tokens(body)
         except Exception as e:
             from meme.log import get_logger
-            get_logger('meme').warning(f'Command error in {os.path.basename(p)}: {e}')
+
+            get_logger("meme").warning(f"Command error in {os.path.basename(p)}: {e}")
             continue
     if total_tokens > TOKEN_BUDGET_WORKING:
         issues.append(("token_overbudget", total_tokens, TOKEN_BUDGET_WORKING))
@@ -117,9 +117,11 @@ def cmd_doctor(args):
         if not fix:
             print("\nRun 'meme doctor --fix' to auto-fix what's possible.")
 
+
 # ========================================
 # Command: backup / gc
 # ========================================
+
 
 def cmd_backup(args):
     """Create a backup tarball."""
@@ -145,7 +147,7 @@ def cmd_gc(args):
 
     backups = sorted(BACKUPS_DIR.glob("meme_backup_*.tar.gz"), key=lambda p: p.stat().st_mtime, reverse=True)
     now = datetime.datetime.now()
-    keep = set()
+    keep: set[Path | str] = set()
 
     for bp in backups:
         mtime = datetime.datetime.fromtimestamp(bp.stat().st_mtime)
@@ -178,14 +180,16 @@ def cmd_gc(args):
 
     print(f"Cleaned {removed} old backups. Kept {len(keep_files)}.")
 
+
 # ========================================
 # Command: reindex
 # ========================================
 
+
 def cmd_reindex(args):
     """Rebuild index.json and graph.json from memory files."""
-    index = {}
-    graph = {}
+    index: dict[str, object] = {}
+    graph: dict[str, object] = {}
 
     for p in find_all_memories(include_cold=True):
         if p.suffix == ".enc":
@@ -201,7 +205,8 @@ def cmd_reindex(args):
                 graph[mem_id] = links
         except Exception as e:
             from meme.log import get_logger
-            get_logger('meme').warning(f'Command error in {os.path.basename(p)}: {e}')
+
+            get_logger("meme").warning(f"Command error in {os.path.basename(p)}: {e}")
             continue
 
     save_index(index)
@@ -210,14 +215,16 @@ def cmd_reindex(args):
     git_commit("reindex: rebuilt index and graph")
     print(f"Reindexed: {len(index)} memories, {len(graph)} graph nodes.")
 
+
 # ========================================
 # Command: stats
 # ========================================
 
+
 def cmd_stats(args):
     """Show memory statistics."""
     stats = {"working": 0, "archive": 0, "cold": 0, "total": 0}
-    types = {}
+    types: dict[str, int] = {}
     total_tokens = 0
 
     for p in find_all_memories(include_cold=True):
@@ -235,11 +242,12 @@ def cmd_stats(args):
             total_tokens += count_tokens(body)
         except Exception as e:
             from meme.log import get_logger
-            get_logger('meme').warning(f'Command error in {os.path.basename(p)}: {e}')
+
+            get_logger("meme").warning(f"Command error in {os.path.basename(p)}: {e}")
             continue
 
     graph = load_graph()
-    total_links = sum(len(v) for v in graph.values())
+    total_links = sum(len(v) for v in graph.values() if hasattr(v, "__len__"))
 
     print("Meme Statistics:")
     print(f"  Working:  {stats['working']}")
@@ -248,13 +256,15 @@ def cmd_stats(args):
     print(f"  Total:    {stats['total']}")
     print(f"  Links:    {total_links}")
     print(f"  Tokens:   ~{total_tokens}")
-    print(f"\n  By type:")
+    print("\n  By type:")
     for t, count in sorted(types.items()):
         print(f"    {t}: {count}")
+
 
 # ========================================
 # Command: export
 # ========================================
+
 
 def cmd_export(args):
     """Export all memories."""
@@ -271,20 +281,25 @@ def cmd_export(args):
             memories.append({"meta": meta, "body": body})
         except Exception as e:
             from meme.log import get_logger
-            get_logger('meme').warning(f'Command error in {os.path.basename(p)}: {e}')
+
+            get_logger("meme").warning(f"Command error in {os.path.basename(p)}: {e}")
             continue
 
     if fmt == "json":
         output = json.dumps(memories, indent=2, ensure_ascii=False)
     else:
-        lines = []
+        lines: list[str] = []
         for m in memories:
-            meta = m["meta"]
-            lines.append(f"# {meta.get('id', 'unknown')}")
-            lines.append(f"Type: {meta.get('type')}, Importance: {meta.get('importance')}")
-            lines.append(f"Tags: {', '.join(meta.get('tags', []))}")
+            meta_obj = m["meta"]
+            meta_id = meta_obj.get("id", "unknown") if hasattr(meta_obj, "get") else "unknown"
+            meta_type = meta_obj.get("type", "unknown") if hasattr(meta_obj, "get") else "unknown"
+            meta_imp = meta_obj.get("importance", 0.5) if hasattr(meta_obj, "get") else 0.5
+            meta_tags = meta_obj.get("tags", []) if hasattr(meta_obj, "get") else []
+            lines.append(f"# {meta_id}")
+            lines.append(f"Type: {meta_type}, Importance: {meta_imp}")
+            lines.append(f"Tags: {', '.join(meta_tags)}")
             lines.append("")
-            lines.append(m["body"])
+            lines.append(str(m["body"]))
             lines.append("\n---\n")
         output = "\n".join(lines)
 
@@ -293,4 +308,3 @@ def cmd_export(args):
         print(f"Exported {len(memories)} memories to {args.output}")
     else:
         print(output)
-

@@ -1,23 +1,32 @@
 """CLI argument parser and main entry point."""
+
 import argparse
-import sys
 
 from meme import __version__ as CURRENT_VERSION
-from meme.log import setup_logging
-from meme.commands.setup import cmd_setup, cmd_init, cmd_uninstall
-from meme.commands.memory import (
-    cmd_add, cmd_list, cmd_show, cmd_search, cmd_query,
-    cmd_edit, cmd_delete, cmd_forget,
-)
-from meme.commands.ingest import cmd_learn, cmd_import
-from meme.commands.lifecycle import cmd_decay, cmd_promote, cmd_demote, cmd_warm
-from meme.commands.links import cmd_link, cmd_suggest_links, cmd_daydream, cmd_config, cmd_dream
+from meme.commands.ingest import cmd_import, cmd_learn
+from meme.commands.lifecycle import cmd_decay, cmd_demote, cmd_promote, cmd_warm
+from meme.commands.links import cmd_config, cmd_daydream, cmd_dream, cmd_link, cmd_suggest_links
 from meme.commands.maintenance import (
-    cmd_doctor, cmd_backup, cmd_gc, cmd_reindex,
-    cmd_stats, cmd_export,
+    cmd_backup,
+    cmd_doctor,
+    cmd_export,
+    cmd_gc,
+    cmd_reindex,
+    cmd_stats,
 )
-from meme.commands.system import cmd_version, cmd_upgrade, cmd_changelog, cmd_auth, cmd_run, cmd_heat
-
+from meme.commands.memory import (
+    cmd_add,
+    cmd_delete,
+    cmd_edit,
+    cmd_forget,
+    cmd_list,
+    cmd_query,
+    cmd_search,
+    cmd_show,
+)
+from meme.commands.setup import cmd_init, cmd_setup, cmd_uninstall
+from meme.commands.system import cmd_auth, cmd_changelog, cmd_heat, cmd_run, cmd_upgrade, cmd_version
+from meme.log import setup_logging
 
 _EPILOG = """\n\
 examples:
@@ -77,11 +86,14 @@ def build_parser() -> argparse.ArgumentParser:
     # add
     p = sub.add_parser("add", help="Add a new memory")
     p.add_argument("content", help="Memory content")
-    p.add_argument("--type", "-t", default="feedback",
-                   choices=["feedback", "project", "user", "reference", "knowledge", "correction"],
-                   help="Memory type (default: feedback)")
-    p.add_argument("--importance", "-i", type=float, default=0.6,
-                   help="Importance 0.0~1.0 (default: 0.6)")
+    p.add_argument(
+        "--type",
+        "-t",
+        default="feedback",
+        choices=["feedback", "project", "user", "reference", "knowledge", "correction"],
+        help="Memory type (default: feedback)",
+    )
+    p.add_argument("--importance", "-i", type=float, default=0.6, help="Importance 0.0~1.0 (default: 0.6)")
     p.add_argument("--tags", default="", help="Comma-separated tags")
     p.add_argument("--links", default="", help="Comma-linked memory IDs")
     p.add_argument("--slug", default="", help="URL-friendly slug for the ID")
@@ -96,14 +108,16 @@ def build_parser() -> argparse.ArgumentParser:
 
     # list
     p = sub.add_parser("list", help="List memories")
-    p.add_argument("--tier", choices=["working", "archive", "cold"],
-                   help="Filter by tier")
+    p.add_argument("--tier", choices=["working", "archive", "cold"], help="Filter by tier")
     p.add_argument("--tag", default=None, help="Filter by tag")
-    p.add_argument("--sort", default="importance", choices=["importance", "recent", "heat"],
-                   help="Sort order (default: importance)")
+    p.add_argument(
+        "--sort",
+        default="importance",
+        choices=["importance", "recent", "heat"],
+        help="Sort order (default: importance)",
+    )
     p.add_argument("--forgotten", action="store_true", help="Include forgotten memories")
-    p.add_argument("--format", default="text", choices=["text", "json"],
-                   help="Output format (default: text)")
+    p.add_argument("--format", default="text", choices=["text", "json"], help="Output format (default: text)")
     p.set_defaults(func=cmd_list)
 
     # show
@@ -114,8 +128,7 @@ def build_parser() -> argparse.ArgumentParser:
     # search
     p = sub.add_parser("search", help="Search memories by keyword")
     p.add_argument("query", help="Search query")
-    p.add_argument("--format", default="text", choices=["text", "json"],
-                   help="Output format (default: text)")
+    p.add_argument("--format", default="text", choices=["text", "json"], help="Output format (default: text)")
     p.set_defaults(func=cmd_search)
 
     # query
@@ -159,8 +172,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     # import
     p = sub.add_parser("import", help="Import memories from external sources")
-    p.add_argument("source", nargs="+", choices=["claude", "claude-global", "codex"],
-                   help="Source to import from")
+    p.add_argument("source", nargs="+", choices=["claude", "claude-global", "codex"], help="Source to import from")
     p.add_argument("--path", default=None, help="Codex workspace path")
     p.add_argument("--dry-run", action="store_true", help="Preview without importing")
     p.set_defaults(func=cmd_import)
@@ -199,14 +211,10 @@ def build_parser() -> argparse.ArgumentParser:
     # daydream
     p = sub.add_parser("daydream", help="Semantic clustering and link consolidation")
     p.add_argument("--dry-run", action="store_true", help="Preview without applying changes")
-    p.add_argument("--mode", choices=["all", "cluster", "link"], default="all",
-                   help="Run mode (default: all)")
-    p.add_argument("--threshold", type=float, default=0.4,
-                   help="Similarity threshold for clustering (default: 0.4)")
-    p.add_argument("--apply", action="store_true",
-                   help="Apply suggested links automatically")
-    p.add_argument("--merge", action="store_true",
-                   help="Merge duplicate memories within clusters")
+    p.add_argument("--mode", choices=["all", "cluster", "link"], default="all", help="Run mode (default: all)")
+    p.add_argument("--threshold", type=float, default=0.4, help="Similarity threshold for clustering (default: 0.4)")
+    p.add_argument("--apply", action="store_true", help="Apply suggested links automatically")
+    p.add_argument("--merge", action="store_true", help="Merge duplicate memories within clusters")
     p.set_defaults(func=cmd_daydream)
 
     # config
@@ -244,8 +252,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     # export
     p = sub.add_parser("export", help="Export all memories")
-    p.add_argument("--format", default="json", choices=["json", "md"],
-                   help="Export format (default: json)")
+    p.add_argument("--format", default="json", choices=["json", "md"], help="Export format (default: json)")
     p.add_argument("--output", "-o", default=None, help="Output file path")
     p.set_defaults(func=cmd_export)
 
@@ -256,17 +263,14 @@ def build_parser() -> argparse.ArgumentParser:
     # auth
     p = sub.add_parser("auth", help="Authenticate and export a vault secret")
     p.add_argument("mem_id", help="Vault memory ID to authenticate")
-    p.add_argument("--var", default=None,
-                   help="Environment variable name (default: MEM_SECRET)")
+    p.add_argument("--var", default=None, help="Environment variable name (default: MEM_SECRET)")
     p.set_defaults(func=cmd_auth)
 
     # run
     p = sub.add_parser("run", help="Run a command with a vault secret as env var")
     p.add_argument("mem_id", help="Vault memory ID")
-    p.add_argument("--var", default=None,
-                   help="Environment variable name (default: MEM_SECRET)")
-    p.add_argument("cmd", nargs="*",
-                   help="Command to execute (after --)")
+    p.add_argument("--var", default=None, help="Environment variable name (default: MEM_SECRET)")
+    p.add_argument("cmd", nargs="*", help="Command to execute (after --)")
     p.set_defaults(func=cmd_run)
 
     # version
@@ -285,9 +289,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     return parser
 
+
 # ========================================
 # Main
 # ========================================
+
 
 def main():
     parser = build_parser()
