@@ -162,6 +162,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("source", nargs="+", choices=["claude", "claude-global", "codex"],
                    help="Source to import from")
     p.add_argument("--path", default=None, help="Codex workspace path")
+    p.add_argument("--dry-run", action="store_true", help="Preview without importing")
     p.set_defaults(func=cmd_import)
 
     # decay

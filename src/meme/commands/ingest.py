@@ -7,7 +7,11 @@ import sys
 from pathlib import Path
 
 from meme.constants import ARCHIVE_DIR, SUBDIRS, INDEX_PATH, GRAPH_PATH, MEMORY_MD_PATH
-from meme.utils import generate_id, git_commit, find_all_memories, load_memory
+from meme.utils import (
+    generate_id, git_commit, find_all_memories, load_memory, parse_frontmatter,
+    find_memory_by_id, get_tier, get_memory_dir, save_memory, _update_index_entry,
+    rebuild_memory_md,
+)
 
 # ========================================
 # Command: learn
@@ -139,9 +143,10 @@ def _find_related(content: str, tags: list[str]) -> list[str]:
 def cmd_import(args):
     """Import memories from external sources."""
     sources = args.source  # list of sources
+    dry_run = getattr(args, "dry_run", False)
     for src in sources:
         if src == "claude":
-            _do_import_claude()
+            _do_import_claude(dry_run=dry_run)
         elif src == "claude-global":
             _do_import_claude_global()
         elif src == "codex":
@@ -150,7 +155,7 @@ def cmd_import(args):
             print(f"Unknown source: {src}")
 
 
-def _do_import_claude():
+def _do_import_claude(dry_run: bool = False):
     """Import from Claude Code project memories."""
     claude_projects = Path.home() / ".claude" / "projects"
     if not claude_projects.exists():
@@ -214,20 +219,27 @@ def _do_import_claude():
                 if existing:
                     continue
 
-                # Save to archive
                 tier = get_tier(meta)
                 mem_dir = get_memory_dir(mem_type, tier)
                 mem_path = mem_dir / f"{meta['id']}.md"
+
+                if dry_run:
+                    print(f"  [dry-run] Would import {md_file.name} -> {mem_path}")
+                    imported += 1
+                    continue
+
+                # Save to archive
                 save_memory(mem_path, meta, body)
                 _update_index_entry(meta["id"], meta, mem_path)
                 imported += 1
             except Exception as e:
                 print(f"  Failed to import {md_file}: {e}")
 
-    if imported:
+    if imported and not dry_run:
         rebuild_memory_md()
         git_commit(f"import: {imported} memories from Claude Code")
-    print(f"Imported {imported} memories from Claude Code projects.")
+    mode = "Would import" if dry_run else "Imported"
+    print(f"{mode} {imported} memories from Claude Code projects.")
 
 
 def _do_import_claude_global():

@@ -91,8 +91,16 @@ def render_frontmatter(meta: dict, body: str) -> str:
         if key not in known:
             lines.append(f"{key}: {yaml.dump(val, default_flow_style=True).strip()}")
     lines.append("---")
+    # Inject wikilinks for Obsidian graph compatibility
+    links = meta.get("links", [])
+    if links:
+        wikilink_line = " ".join(f"[[{lid}]]" for lid in links)
+        # Avoid duplicating on load->save roundtrips
+        if not (body or "").startswith(wikilink_line):
+            lines.append(wikilink_line)
     lines.append("")
-    lines.append(body)
+    if body:
+        lines.append(body)
     return "\n".join(lines)
 
 

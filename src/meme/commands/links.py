@@ -14,7 +14,7 @@ from meme.constants import (
 from meme.config import load_config, save_config, get_config_value, set_config_value
 from meme.utils import (
     load_memory, save_memory, find_all_memories, find_memory_by_id,
-    load_graph, save_graph, rebuild_memory_md, git_commit,
+    load_graph, save_graph, _add_to_graph, rebuild_memory_md, git_commit,
 )
 
 # ========================================
