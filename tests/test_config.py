@@ -7,8 +7,8 @@
 
 import pytest
 
-from meme.models import MemeConfig, DreamConfig, DaydreamConfig, HooksConfig
-from meme.config import load_config, save_config, get_config_value, set_config_value
+from meme.config import get_config_value, load_config, save_config, set_config_value
+from meme.models import ConfigValidationError, DreamConfig, MemeConfig
 
 
 class TestLoadConfig:
@@ -34,8 +34,7 @@ class TestLoadConfig:
 
         config_path = cfg.CONFIG_PATH
         config_path.write_text(
-            '[dream]\nenabled = false\nschedule = "0 5 * * *"\nthreshold = 0.7\n'
-            '[daydream]\nmerge = false\n',
+            '[dream]\nenabled = false\nschedule = "0 5 * * *"\nthreshold = 0.7\n' "[daydream]\nmerge = false\n",
             encoding="utf-8",
         )
         config = load_config()
@@ -74,7 +73,7 @@ class TestSaveConfig:
         text = config_path.read_text(encoding="utf-8")
         assert "enabled = false" in text
         assert "threshold = 0.9" in text
-        assert "schedule = \"0 3 * * *\"" in text
+        assert 'schedule = "0 3 * * *"' in text
 
     def test_save_preserves_all_sections(self, reload_modules):
         """save_config writes all three sections."""
@@ -186,3 +185,116 @@ class TestSetConfigValue:
         """set_config_value returns False when intermediate key is missing."""
         config = MemeConfig()
         assert set_config_value(config, "nonexistent.nested.field", "value") is False
+
+
+class TestConfigValidation:
+    """Tests for config schema validation."""
+
+    def test_valid_config_loads(self, reload_modules):
+        """Valid config loads without error."""
+        import meme.config as cfg
+
+        config_path = cfg.CONFIG_PATH
+        config_path.write_text(
+            '[dream]\nenabled = false\nschedule = "0 5 * * *"\nthreshold = 0.7\n'
+            '[daydream]\nthreshold = 0.5\ndefault_mode = "cluster"\n',
+            encoding="utf-8",
+        )
+        config = load_config()
+        assert config.dream.enabled is False
+        assert config.dream.threshold == 0.7
+        assert config.daydream.default_mode == "cluster"
+
+    def test_invalid_cron_raises(self, reload_modules):
+        """Invalid cron schedule raises ConfigValidationError."""
+        import meme.config as cfg
+
+        config_path = cfg.CONFIG_PATH
+        config_path.write_text('[dream]\nschedule = "not-a-cron"\n', encoding="utf-8")
+        with pytest.raises(ConfigValidationError) as exc_info:
+            load_config()
+        assert "cron" in str(exc_info.value).lower()
+
+    def test_cron_wrong_field_count_raises(self, reload_modules):
+        """Cron with wrong field count raises ConfigValidationError."""
+        import meme.config as cfg
+
+        config_path = cfg.CONFIG_PATH
+        config_path.write_text('[dream]\nschedule = "0 3 * *"\n', encoding="utf-8")
+        with pytest.raises(ConfigValidationError) as exc_info:
+            load_config()
+        assert "5 fields" in str(exc_info.value)
+
+    def test_invalid_dream_threshold_raises(self, reload_modules):
+        """Dream threshold outside 0-1 raises ConfigValidationError."""
+        import meme.config as cfg
+
+        config_path = cfg.CONFIG_PATH
+        config_path.write_text("[dream]\nthreshold = 1.5\n", encoding="utf-8")
+        with pytest.raises(ConfigValidationError) as exc_info:
+            load_config()
+        assert "threshold" in str(exc_info.value).lower()
+        assert "0.0" in str(exc_info.value)
+
+    def test_negative_threshold_raises(self, reload_modules):
+        """Negative threshold raises ConfigValidationError."""
+        import meme.config as cfg
+
+        config_path = cfg.CONFIG_PATH
+        config_path.write_text("[daydream]\nthreshold = -0.1\n", encoding="utf-8")
+        with pytest.raises(ConfigValidationError) as exc_info:
+            load_config()
+        assert "threshold" in str(exc_info.value).lower()
+
+    def test_invalid_mode_raises(self, reload_modules):
+        """Invalid mode literal raises ConfigValidationError."""
+        import meme.config as cfg
+
+        config_path = cfg.CONFIG_PATH
+        config_path.write_text('[dream]\nmode = "invalid"\n', encoding="utf-8")
+        with pytest.raises(ConfigValidationError) as exc_info:
+            load_config()
+        assert "mode" in str(exc_info.value).lower()
+        assert "invalid" in str(exc_info.value).lower()
+
+    def test_invalid_daydream_mode_raises(self, reload_modules):
+        """Invalid daydream mode raises ConfigValidationError."""
+        import meme.config as cfg
+
+        config_path = cfg.CONFIG_PATH
+        config_path.write_text('[daydream]\ndefault_mode = "foo"\n', encoding="utf-8")
+        with pytest.raises(ConfigValidationError) as exc_info:
+            load_config()
+        assert "default_mode" in str(exc_info.value).lower()
+
+    def test_empty_report_dir_raises(self, reload_modules):
+        """Empty report_dir raises ConfigValidationError."""
+        import meme.config as cfg
+
+        config_path = cfg.CONFIG_PATH
+        config_path.write_text('[dream]\nreport_dir = ""\n', encoding="utf-8")
+        with pytest.raises(ConfigValidationError) as exc_info:
+            load_config()
+        assert "report_dir" in str(exc_info.value).lower()
+
+    def test_invalid_toml_still_falls_back(self, reload_modules):
+        """Invalid TOML (not validation error) falls back to defaults."""
+        import meme.config as cfg
+
+        config_path = cfg.CONFIG_PATH
+        config_path.write_text("not valid toml [[", encoding="utf-8")
+        config = load_config()
+        assert isinstance(config, MemeConfig)
+        assert config.dream.enabled is True
+
+    def test_config_validate_method_direct(self):
+        """MemeConfig.validate() works directly."""
+        config = MemeConfig()
+        config.validate()  # Should not raise
+
+    def test_config_validate_catches_invalid_direct(self):
+        """MemeConfig.validate() catches invalid values set directly."""
+        config = MemeConfig()
+        config.dream.threshold = 2.0
+        with pytest.raises(ConfigValidationError):
+            config.validate()

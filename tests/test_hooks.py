@@ -11,8 +11,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 HOOKS_SRC = REPO_ROOT / "src" / "meme" / "hooks"
 
@@ -75,22 +73,22 @@ class TestQueryHook:
         # Write a test memory
         mem_path = meme_home / "archive" / "knowledge" / "mem_test_uv.md"
         mem_path.write_text(
-            '---\n'
-            'id: mem_test_uv\n'
-            'type: knowledge\n'
-            'importance: 0.6\n'
+            "---\n"
+            "id: mem_test_uv\n"
+            "type: knowledge\n"
+            "importance: 0.6\n"
             'created: "2026-05-27"\n'
             'last_accessed: "2026-05-27"\n'
-            'access_count: 1\n'
-            'tags: [uv, python]\n'
-            'links: []\n'
-            'superseded_by: null\n'
-            'forgotten: false\n'
-            'sensitive: false\n'
-            'source_url: null\n'
-            'source_file: null\n'
-            '---\n'
-            '使用 uv 管理 Python 依赖，替代 pip。\n',
+            "access_count: 1\n"
+            "tags: [uv, python]\n"
+            "links: []\n"
+            "superseded_by: null\n"
+            "forgotten: false\n"
+            "sensitive: false\n"
+            "source_url: null\n"
+            "source_file: null\n"
+            "---\n"
+            "使用 uv 管理 Python 依赖，替代 pip。\n",
             encoding="utf-8",
         )
 
@@ -120,9 +118,7 @@ class TestQueryHook:
         # This prompt contains "remember" but is a question / recall, not a command
         result = subprocess.run(
             ["bash", str(HOOKS_SRC / "query.sh")],
-            input=json.dumps(
-                {"prompt": [{"type": "text", "text": "为什么ai不自己执行，我记得有设计ai自己执行"}]}
-            ),
+            input=json.dumps({"prompt": [{"type": "text", "text": "为什么ai不自己执行，我记得有设计ai自己执行"}]}),
             capture_output=True,
             text=True,
             env={**os.environ, "MEME_HOME": str(meme_home)},
@@ -187,20 +183,20 @@ class TestSessionStartHook:
         # Write a working memory
         mem_path = meme_home / "working" / "user_identity.md"
         mem_path.write_text(
-            '---\n'
-            'id: mem_user\n'
-            'type: user\n'
-            'importance: 0.9\n'
+            "---\n"
+            "id: mem_user\n"
+            "type: user\n"
+            "importance: 0.9\n"
             'created: "2026-05-27"\n'
             'last_accessed: "2026-05-27"\n'
-            'access_count: 1\n'
-            'tags: []\n'
-            'links: []\n'
-            'superseded_by: null\n'
-            'forgotten: false\n'
-            'sensitive: false\n'
-            '---\n'
-            'Software engineer, Python/TypeScript\n',
+            "access_count: 1\n"
+            "tags: []\n"
+            "links: []\n"
+            "superseded_by: null\n"
+            "forgotten: false\n"
+            "sensitive: false\n"
+            "---\n"
+            "Software engineer, Python/TypeScript\n",
             encoding="utf-8",
         )
         (meme_home / "meta" / "session_heat.json").write_text(

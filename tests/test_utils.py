@@ -6,22 +6,21 @@
 """Tests for Meme utility functions."""
 
 import datetime
-from pathlib import Path
 
 import pytest
 
 from meme.models import MemoryMeta
 from meme.utils import (
-    parse_frontmatter,
-    render_frontmatter,
     count_tokens,
-    generate_id,
-    get_tier,
-    get_memory_dir,
-    save_memory_to_string,
-    parse_memory_string,
     find_all_memories,
     find_memory_by_id,
+    generate_id,
+    get_memory_dir,
+    get_tier,
+    parse_frontmatter,
+    parse_memory_string,
+    render_frontmatter,
+    save_memory_to_string,
 )
 
 
@@ -285,7 +284,7 @@ class TestFindAllMemories:
 
     def test_skips_forgotten_by_default(self, reload_modules):
         """find_all_memories excludes forgotten memories."""
-        from meme.constants import WORKING_DIR, META_DIR
+        from meme.constants import META_DIR, WORKING_DIR
 
         WORKING_DIR.mkdir(parents=True, exist_ok=True)
         META_DIR.mkdir(parents=True, exist_ok=True)
@@ -296,9 +295,7 @@ class TestFindAllMemories:
         # Write forgotten index
         import json
 
-        (META_DIR / "forgotten_index.json").write_text(
-            json.dumps({"mem_forgotten": {}}), encoding="utf-8"
-        )
+        (META_DIR / "forgotten_index.json").write_text(json.dumps({"mem_forgotten": {}}), encoding="utf-8")
         paths = find_all_memories()
         assert len(paths) == 0
 
@@ -309,9 +306,7 @@ class TestFindMemoryById:
         from meme.constants import WORKING_DIR
 
         WORKING_DIR.mkdir(parents=True, exist_ok=True)
-        (WORKING_DIR / "mem_target.md").write_text(
-            "---\nid: mem_target\n---\n\nbody", encoding="utf-8"
-        )
+        (WORKING_DIR / "mem_target.md").write_text("---\nid: mem_target\n---\n\nbody", encoding="utf-8")
         path = find_memory_by_id("mem_target")
         assert path is not None
         assert path.name == "mem_target.md"
@@ -326,9 +321,7 @@ class TestFindMemoryById:
 
         knowledge_dir = ARCHIVE_DIR / "knowledge"
         knowledge_dir.mkdir(parents=True, exist_ok=True)
-        (knowledge_dir / "mem_know.md").write_text(
-            "---\nid: mem_know\n---\n\nbody", encoding="utf-8"
-        )
+        (knowledge_dir / "mem_know.md").write_text("---\nid: mem_know\n---\n\nbody", encoding="utf-8")
         path = find_memory_by_id("mem_know")
         assert path is not None
         assert path.name == "mem_know.md"

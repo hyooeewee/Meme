@@ -7,16 +7,13 @@
 
 import json
 import sys
-from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
-
 
 # ========================================
 # Module-level setup: inject missing imports into meme.vault
 # ========================================
-
 import yaml
 
 import meme.vault as _vault_mod
@@ -36,6 +33,7 @@ _vault_mod.VAULT_KEYRING_USER = VAULT_KEYRING_USER
 # ========================================
 # Fixtures
 # ========================================
+
 
 @pytest.fixture
 def mock_keyring(monkeypatch):
@@ -63,6 +61,7 @@ def isolated_vault(init_meme, monkeypatch):
 # ========================================
 # Vault key and encryption tests
 # ========================================
+
 
 class TestVaultKey:
     def test_get_vault_key_generates_new_key(self, init_meme, mock_keyring):
@@ -100,8 +99,9 @@ class TestVaultKey:
 class TestVaultEncryptDecrypt:
     def test_encrypt_decrypt_roundtrip(self, init_meme, mock_keyring):
         """Encrypt then decrypt should return original plaintext."""
-        from meme.vault import vault_encrypt, vault_decrypt
         from cryptography.fernet import Fernet
+
+        from meme.vault import vault_decrypt, vault_encrypt
 
         # Use a fixed key so encrypt and decrypt use the same key
         fixed_key = Fernet.generate_key()
@@ -118,8 +118,9 @@ class TestVaultEncryptDecrypt:
 
     def test_encrypt_different_ciphertexts(self, init_meme, mock_keyring):
         """Encrypting same plaintext twice should yield different ciphertexts."""
-        from meme.vault import vault_encrypt
         from cryptography.fernet import Fernet
+
+        from meme.vault import vault_encrypt
 
         # Use a fixed key for consistent testing
         fixed_key = Fernet.generate_key()
@@ -135,6 +136,7 @@ class TestVaultEncryptDecrypt:
     def test_decrypt_wrong_key_fails(self, init_meme):
         """Decrypting with wrong key should raise an error."""
         from cryptography.fernet import Fernet
+
         from meme.vault import vault_decrypt
 
         key1 = Fernet.generate_key()
@@ -145,14 +147,14 @@ class TestVaultEncryptDecrypt:
         mock_keyring = MagicMock()
         mock_keyring.get_password.return_value = key2.decode()
 
-        with patch.dict(sys.modules, {"keyring": mock_keyring}):
-            with pytest.raises(Exception):
-                vault_decrypt(ciphertext)
+        with patch.dict(sys.modules, {"keyring": mock_keyring}), pytest.raises(Exception):
+            vault_decrypt(ciphertext)
 
     def test_encrypt_unicode_content(self, init_meme, mock_keyring):
         """Encrypt/decrypt should handle unicode content."""
-        from meme.vault import vault_encrypt, vault_decrypt
         from cryptography.fernet import Fernet
+
+        from meme.vault import vault_decrypt, vault_encrypt
 
         # Use a fixed key so encrypt and decrypt use the same key
         fixed_key = Fernet.generate_key()
@@ -168,6 +170,7 @@ class TestVaultEncryptDecrypt:
 # ========================================
 # Touch ID auth tests
 # ========================================
+
 
 class TestTouchIdAuth:
     def test_touch_id_non_darwin_returns_false(self, init_meme):
@@ -188,10 +191,10 @@ class TestTouchIdAuth:
                 # Biometrics unavailable, password available
                 context.canEvaluatePolicy_error_.side_effect = [
                     (False, None),  # biometrics not available
-                    (True, None),   # device password available
+                    (True, None),  # device password available
                 ]
-                context.evaluatePolicy_localizedReason_reply_.side_effect = (
-                    lambda policy, reason, callback: callback(True, None)
+                context.evaluatePolicy_localizedReason_reply_.side_effect = lambda policy, reason, callback: callback(
+                    True, None
                 )
                 mock_la.alloc.return_value.init.return_value = context
 
@@ -232,6 +235,7 @@ class TestTouchIdAuth:
 # Save / Load vault memory tests
 # ========================================
 
+
 class TestSaveLoadVaultMemory:
     def test_save_vault_memory_creates_enc_file(self, init_meme, mock_keyring, isolated_vault):
         """Saving a vault memory should create an .enc file."""
@@ -271,8 +275,9 @@ class TestSaveLoadVaultMemory:
 
     def test_load_vault_memory_roundtrip(self, init_meme, mock_keyring, isolated_vault):
         """Save then load vault memory should return original content."""
-        from meme.vault import save_vault_memory, load_vault_memory
         from cryptography.fernet import Fernet
+
+        from meme.vault import load_vault_memory, save_vault_memory
 
         # Use a fixed key for consistent encrypt/decrypt
         fixed_key = Fernet.generate_key()
@@ -332,6 +337,7 @@ class TestSaveLoadVaultMemory:
 # Memory string serialization tests
 # ========================================
 
+
 class TestMemoryStringSerialization:
     def test_save_memory_to_string(self, init_meme):
         """save_memory_to_string should produce valid frontmatter markdown."""
@@ -378,7 +384,7 @@ class TestMemoryStringSerialization:
 
     def test_roundtrip_serialization(self, init_meme):
         """serialize then parse should return equivalent data."""
-        from meme.vault import save_memory_to_string, parse_memory_string
+        from meme.vault import parse_memory_string, save_memory_to_string
 
         meta = {"id": "mem_rt", "type": "knowledge", "tags": ["a", "b"]}
         body = "roundtrip content"
@@ -394,6 +400,7 @@ class TestMemoryStringSerialization:
 # ========================================
 # Auth / Run command tests (vault-specific)
 # ========================================
+
 
 class TestAuthRun:
     def test_run_missing_command_fails(self, init_meme, capsys):

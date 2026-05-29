@@ -58,7 +58,7 @@ class TestGraphTraversal:
 
         code, out, err = cli_runner("list", "--format", "json")
         results = json.loads(out)
-        ids = sorted([r["id"] for r in results], key=lambda x: json.loads(out))
+        sorted([r["id"] for r in results], key=lambda x: json.loads(out))
         # Get IDs by importance
         high_id = [r["id"] for r in json.loads(cli_runner("list", "--format", "json")[1]) if r["importance"] == 0.8][0]
         low_id = [r["id"] for r in json.loads(cli_runner("list", "--format", "json")[1]) if r["importance"] == 0.5][0]

@@ -5,14 +5,12 @@
 
 """Pytest fixtures for Meme test suite."""
 
-import json
 import os
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
-
 
 # Add src/ to path so we can import meme in tests
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -64,8 +62,8 @@ def reload_modules(temp_meme_home):
     """Reload meme modules so they pick up the temp MEME_HOME."""
     import importlib
 
-    import meme.constants as c
     import meme.config as cfg
+    import meme.constants as c
     import meme.utils as utils
 
     importlib.reload(c)
@@ -77,11 +75,12 @@ def reload_modules(temp_meme_home):
 
 
 @pytest.fixture
-def cli_runner(temp_meme_home):
+def cli_runner(init_meme):
     """Run meme CLI commands and return (exit_code, stdout, stderr)."""
+    meme_home = str(init_meme)
 
     def run(*args):
-        env = {**os.environ, "MEME_HOME": str(temp_meme_home)}
+        env = {**os.environ, "MEME_HOME": meme_home}
         result = subprocess.run(
             [sys.executable, "-m", "meme.core"] + list(args),
             capture_output=True,

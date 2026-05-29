@@ -10,13 +10,14 @@ from pathlib import Path
 
 import pytest
 
-
 # ========================================
 # Helpers
 # ========================================
 
+
 def _make_args(**kwargs):
     """Build a fake argparse Namespace from keyword args."""
+
     class FakeArgs:
         pass
 
@@ -30,11 +31,12 @@ def _make_args(**kwargs):
 # Decay command tests
 # ========================================
 
+
 class TestDecay:
     def test_decay_dry_run_no_changes(self, init_meme):
         """Dry-run should not modify any files."""
         from meme.commands.lifecycle import cmd_decay
-        from meme.utils import save_memory, load_memory
+        from meme.utils import load_memory, save_memory
 
         meta = {
             "id": "mem_test_decay",
@@ -48,7 +50,8 @@ class TestDecay:
         mem_path = init_meme / "archive" / "feedback" / "mem_test_decay.md"
         save_memory(mem_path, meta, "old memory content")
 
-        from meme.utils import save_index, load_index
+        from meme.utils import load_index, save_index
+
         idx = load_index()
         idx["mem_test_decay"] = {"id": "mem_test_decay", "path": str(mem_path), "importance": 0.8}
         save_index(idx)
@@ -62,7 +65,7 @@ class TestDecay:
     def test_decay_applies_changes(self, init_meme):
         """Non-dry-run decay should lower importance of old memories."""
         from meme.commands.lifecycle import cmd_decay
-        from meme.utils import save_memory, load_memory, find_memory_by_id
+        from meme.utils import find_memory_by_id, load_memory, save_memory
 
         old_date = (datetime.date.today() - datetime.timedelta(days=30)).strftime("%Y-%m-%d")
         meta = {
@@ -77,7 +80,8 @@ class TestDecay:
         mem_path = init_meme / "archive" / "feedback" / "mem_test_decay2.md"
         save_memory(mem_path, meta, "old memory content")
 
-        from meme.utils import save_index, load_index
+        from meme.utils import load_index, save_index
+
         idx = load_index()
         idx["mem_test_decay2"] = {"id": "mem_test_decay2", "path": str(mem_path), "importance": 0.8}
         save_index(idx)
@@ -93,7 +97,7 @@ class TestDecay:
     def test_decay_skips_forgotten(self, init_meme):
         """Forgotten memories should not be decayed."""
         from meme.commands.lifecycle import cmd_decay
-        from meme.utils import save_memory, load_memory
+        from meme.utils import load_memory, save_memory
 
         old_date = (datetime.date.today() - datetime.timedelta(days=30)).strftime("%Y-%m-%d")
         meta = {
@@ -109,7 +113,8 @@ class TestDecay:
         mem_path = init_meme / "archive" / "feedback" / "mem_test_decay_forgot.md"
         save_memory(mem_path, meta, "forgotten memory")
 
-        from meme.utils import save_index, load_index
+        from meme.utils import load_index, save_index
+
         idx = load_index()
         idx["mem_test_decay_forgot"] = {"id": "mem_test_decay_forgot", "path": str(mem_path), "importance": 0.8}
         save_index(idx)
@@ -123,7 +128,7 @@ class TestDecay:
     def test_decay_correction_slower_rate(self, init_meme):
         """Correction memories decay at 0.975 instead of 0.95."""
         from meme.commands.lifecycle import cmd_decay
-        from meme.utils import save_memory, load_memory, find_memory_by_id
+        from meme.utils import find_memory_by_id, load_memory, save_memory
 
         old_date = (datetime.date.today() - datetime.timedelta(days=10)).strftime("%Y-%m-%d")
         meta = {
@@ -138,7 +143,8 @@ class TestDecay:
         mem_path = init_meme / "archive" / "corrections" / "mem_test_decay_corr.md"
         save_memory(mem_path, meta, "correction memory")
 
-        from meme.utils import save_index, load_index
+        from meme.utils import load_index, save_index
+
         idx = load_index()
         idx["mem_test_decay_corr"] = {"id": "mem_test_decay_corr", "path": str(mem_path), "importance": 0.8}
         save_index(idx)
@@ -156,11 +162,12 @@ class TestDecay:
 # Promote / Demote / Warm command tests
 # ========================================
 
+
 class TestPromoteDemoteWarm:
     def test_promote_to_working(self, init_meme):
         """Promote should raise importance to working threshold."""
         from meme.commands.lifecycle import cmd_promote
-        from meme.utils import save_memory, load_memory, find_memory_by_id
+        from meme.utils import find_memory_by_id, load_memory, save_memory
 
         meta = {
             "id": "mem_test_promote",
@@ -174,7 +181,8 @@ class TestPromoteDemoteWarm:
         mem_path = init_meme / "archive" / "feedback" / "mem_test_promote.md"
         save_memory(mem_path, meta, "promote me")
 
-        from meme.utils import save_index, load_index
+        from meme.utils import load_index, save_index
+
         idx = load_index()
         idx["mem_test_promote"] = {"id": "mem_test_promote", "path": str(mem_path), "importance": 0.3}
         save_index(idx)
@@ -185,12 +193,13 @@ class TestPromoteDemoteWarm:
         new_path = find_memory_by_id("mem_test_promote")
         meta2, _ = load_memory(new_path)
         from meme.constants import TIER_WORKING_THRESHOLD
+
         assert meta2["importance"] >= TIER_WORKING_THRESHOLD
 
     def test_demote_lowers_importance(self, init_meme):
         """Demote should lower importance."""
         from meme.commands.lifecycle import cmd_demote
-        from meme.utils import save_memory, load_memory, find_memory_by_id
+        from meme.utils import find_memory_by_id, load_memory, save_memory
 
         meta = {
             "id": "mem_test_demote",
@@ -204,7 +213,8 @@ class TestPromoteDemoteWarm:
         mem_path = init_meme / "working" / "mem_test_demote.md"
         save_memory(mem_path, meta, "demote me")
 
-        from meme.utils import save_index, load_index
+        from meme.utils import load_index, save_index
+
         idx = load_index()
         idx["mem_test_demote"] = {"id": "mem_test_demote", "path": str(mem_path), "importance": 0.9}
         save_index(idx)
@@ -219,7 +229,7 @@ class TestPromoteDemoteWarm:
     def test_demote_with_target_importance(self, init_meme):
         """Demote with explicit importance should set that value."""
         from meme.commands.lifecycle import cmd_demote
-        from meme.utils import save_memory, load_memory, find_memory_by_id
+        from meme.utils import find_memory_by_id, load_memory, save_memory
 
         meta = {
             "id": "mem_test_demote2",
@@ -233,7 +243,8 @@ class TestPromoteDemoteWarm:
         mem_path = init_meme / "working" / "mem_test_demote2.md"
         save_memory(mem_path, meta, "demote me")
 
-        from meme.utils import save_index, load_index
+        from meme.utils import load_index, save_index
+
         idx = load_index()
         idx["mem_test_demote2"] = {"id": "mem_test_demote2", "path": str(mem_path), "importance": 0.9}
         save_index(idx)
@@ -248,8 +259,8 @@ class TestPromoteDemoteWarm:
     def test_warm_cold_memory(self, init_meme):
         """Warm should move cold memory to archive tier."""
         from meme.commands.lifecycle import cmd_warm
-        from meme.utils import save_memory, load_memory, find_memory_by_id
         from meme.constants import TIER_ARCHIVE_THRESHOLD
+        from meme.utils import find_memory_by_id, load_memory, save_memory
 
         meta = {
             "id": "mem_test_warm",
@@ -263,7 +274,8 @@ class TestPromoteDemoteWarm:
         mem_path = init_meme / "cold" / "mem_test_warm.md"
         save_memory(mem_path, meta, "warm me")
 
-        from meme.utils import save_index, load_index
+        from meme.utils import load_index, save_index
+
         idx = load_index()
         idx["mem_test_warm"] = {"id": "mem_test_warm", "path": str(mem_path), "importance": 0.1}
         save_index(idx)
@@ -290,11 +302,12 @@ class TestPromoteDemoteWarm:
 # Daydream command tests
 # ========================================
 
+
 class TestDaydream:
     def test_daydream_dry_run_no_changes(self, init_meme):
         """Daydream dry-run should not modify files."""
         from meme.commands.links import cmd_daydream
-        from meme.utils import save_memory, load_memory
+        from meme.utils import load_memory, save_memory
 
         for i, content in enumerate(["docker setup guide for python", "docker config for python apps"]):
             meta = {
@@ -309,10 +322,15 @@ class TestDaydream:
             mem_path = init_meme / "archive" / "knowledge" / f"mem_dream_{i}.md"
             save_memory(mem_path, meta, content)
 
-        from meme.utils import save_index, load_index
+        from meme.utils import load_index, save_index
+
         idx = load_index()
         for i in range(2):
-            idx[f"mem_dream_{i}"] = {"id": f"mem_dream_{i}", "path": str(init_meme / "archive" / "knowledge" / f"mem_dream_{i}.md"), "importance": 0.6}
+            idx[f"mem_dream_{i}"] = {
+                "id": f"mem_dream_{i}",
+                "path": str(init_meme / "archive" / "knowledge" / f"mem_dream_{i}.md"),
+                "importance": 0.6,
+            }
         save_index(idx)
 
         meta0, body0 = load_memory(init_meme / "archive" / "knowledge" / "mem_dream_0.md")
@@ -325,10 +343,9 @@ class TestDaydream:
 
     def test_daydream_empty_memories(self, init_meme, capsys, monkeypatch, tmp_path):
         """Daydream with no memories should report nothing found."""
-        from meme.commands.links import cmd_daydream
-        import meme.constants as const
         import meme.commands.links as links_mod
-        from meme.utils import find_all_memories
+        import meme.constants as const
+        from meme.commands.links import cmd_daydream
 
         # Use an isolated MEME_HOME so no other test memories are visible
         isolated_home = tmp_path / "isolated_meme"
@@ -351,6 +368,7 @@ class TestDaydream:
         # Patch find_all_memories to use the isolated home
         # (it captures WORKING_DIR/ARCHIVE_DIR at import time)
         import meme.utils as utils_mod
+
         monkeypatch.setattr(utils_mod, "WORKING_DIR", isolated_home / "working")
         monkeypatch.setattr(utils_mod, "ARCHIVE_DIR", isolated_home / "archive")
         monkeypatch.setattr(utils_mod, "COLD_DIR", isolated_home / "cold")
@@ -379,10 +397,15 @@ class TestDaydream:
             mem_path = init_meme / "archive" / "knowledge" / f"mem_cluster_{i}.md"
             save_memory(mem_path, meta, content)
 
-        from meme.utils import save_index, load_index
+        from meme.utils import load_index, save_index
+
         idx = load_index()
         for i in range(2):
-            idx[f"mem_cluster_{i}"] = {"id": f"mem_cluster_{i}", "path": str(init_meme / "archive" / "knowledge" / f"mem_cluster_{i}.md"), "importance": 0.6}
+            idx[f"mem_cluster_{i}"] = {
+                "id": f"mem_cluster_{i}",
+                "path": str(init_meme / "archive" / "knowledge" / f"mem_cluster_{i}.md"),
+                "importance": 0.6,
+            }
         save_index(idx)
 
         args = _make_args(dry_run=True, mode="cluster", threshold=0.4, apply=False, merge=False)
@@ -406,10 +429,15 @@ class TestDaydream:
             mem_path = init_meme / "archive" / "knowledge" / f"mem_link_{i}.md"
             save_memory(mem_path, meta, content)
 
-        from meme.utils import save_index, load_index
+        from meme.utils import load_index, save_index
+
         idx = load_index()
         for i in range(2):
-            idx[f"mem_link_{i}"] = {"id": f"mem_link_{i}", "path": str(init_meme / "archive" / "knowledge" / f"mem_link_{i}.md"), "importance": 0.6}
+            idx[f"mem_link_{i}"] = {
+                "id": f"mem_link_{i}",
+                "path": str(init_meme / "archive" / "knowledge" / f"mem_link_{i}.md"),
+                "importance": 0.6,
+            }
         save_index(idx)
 
         args = _make_args(dry_run=True, mode="link", threshold=0.4, apply=False, merge=False)
@@ -420,11 +448,12 @@ class TestDaydream:
 # Reindex / Stats / Export tests
 # ========================================
 
+
 class TestMaintenance:
     def test_reindex_rebuilds_index(self, init_meme):
         """Reindex should rebuild index from memory files."""
         from meme.commands.maintenance import cmd_reindex
-        from meme.utils import save_memory, load_index
+        from meme.utils import load_index, save_memory
 
         meta = {
             "id": "mem_reindex",
@@ -439,6 +468,7 @@ class TestMaintenance:
         save_memory(mem_path, meta, "reindex test")
 
         from meme.utils import save_index
+
         save_index({})
 
         args = _make_args()
@@ -464,7 +494,8 @@ class TestMaintenance:
         mem_path = init_meme / "archive" / "feedback" / "mem_stats.md"
         save_memory(mem_path, meta, "stats test")
 
-        from meme.utils import save_index, load_index
+        from meme.utils import load_index, save_index
+
         idx = load_index()
         idx["mem_stats"] = {"id": "mem_stats", "path": str(mem_path), "importance": 0.5}
         save_index(idx)
@@ -491,7 +522,8 @@ class TestMaintenance:
         mem_path = init_meme / "archive" / "knowledge" / "mem_export_md.md"
         save_memory(mem_path, meta, "md export test")
 
-        from meme.utils import save_index, load_index
+        from meme.utils import load_index, save_index
+
         idx = load_index()
         idx["mem_export_md"] = {"id": "mem_export_md", "path": str(mem_path), "importance": 0.7}
         save_index(idx)
@@ -503,6 +535,7 @@ class TestMaintenance:
 # ========================================
 # Config command tests
 # ========================================
+
 
 class TestConfig:
     def test_config_get_existing_key(self, init_meme, capsys):
@@ -554,6 +587,7 @@ class TestConfig:
 # Doctor command tests
 # ========================================
 
+
 class TestDoctor:
     def test_doctor_finds_broken_symlink(self, init_meme, capsys, monkeypatch, tmp_path):
         """Doctor should detect and optionally fix broken symlinks."""
@@ -579,7 +613,7 @@ class TestDoctor:
     def test_doctor_fixes_frontmatter(self, init_meme, capsys):
         """Doctor --fix should add missing frontmatter keys."""
         from meme.commands.maintenance import cmd_doctor
-        from meme.utils import save_memory, load_memory
+        from meme.utils import load_memory, save_memory
 
         meta = {"id": "mem_doctor", "type": "feedback"}
         mem_path = init_meme / "archive" / "feedback" / "mem_doctor.md"
@@ -606,6 +640,7 @@ class TestDoctor:
 # Version / Changelog tests
 # ========================================
 
+
 class TestVersion:
     def test_version_shows_version(self, init_meme, capsys):
         """Version command should show version string."""
@@ -615,4 +650,3 @@ class TestVersion:
         cmd_version(args)
         captured = capsys.readouterr()
         assert "Meme v" in captured.out
-
