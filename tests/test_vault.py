@@ -97,6 +97,11 @@ class TestVaultKey:
 
 
 class TestVaultEncryptDecrypt:
+    @pytest.fixture(autouse=True)
+    def _no_touch_id(self, monkeypatch):
+        """Prevent Touch ID prompts during encrypt/decrypt tests."""
+        monkeypatch.setattr("meme.vault._touch_id_auth", lambda reason: True)
+
     def test_encrypt_decrypt_roundtrip(self, init_meme, mock_keyring):
         """Encrypt then decrypt should return original plaintext."""
         from cryptography.fernet import Fernet
@@ -237,6 +242,11 @@ class TestTouchIdAuth:
 
 
 class TestSaveLoadVaultMemory:
+    @pytest.fixture(autouse=True)
+    def _no_touch_id(self, monkeypatch):
+        """Prevent Touch ID prompts during save/load vault tests."""
+        monkeypatch.setattr("meme.vault._touch_id_auth", lambda reason: True)
+
     def test_save_vault_memory_creates_enc_file(self, init_meme, mock_keyring, isolated_vault):
         """Saving a vault memory should create an .enc file."""
         from meme.vault import save_vault_memory
