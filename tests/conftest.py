@@ -22,9 +22,19 @@ def temp_meme_home(tmp_path, monkeypatch):
     """Create an isolated Meme home directory for a single test."""
     meme_home = tmp_path / ".meme"
     monkeypatch.setenv("MEME_HOME", str(meme_home))
-    # Force reimport of core module with new env var
+    # Force reimport of constants and dependent modules with new env var
     import importlib
 
+    import meme.constants as c
+
+    importlib.reload(c)
+    # Reload modules that depend on constants
+    import meme.config as cfg
+    import meme.utils as utils
+
+    importlib.reload(cfg)
+    importlib.reload(utils)
+    # Also reload core so its re-exports pick up new constants
     import meme.core as core_mod
 
     importlib.reload(core_mod)
@@ -34,27 +44,28 @@ def temp_meme_home(tmp_path, monkeypatch):
 @pytest.fixture
 def init_meme(temp_meme_home):
     """Initialize a fresh Meme installation (like `meme setup`)."""
-    import meme.core as core_mod
+    meme_home = temp_meme_home
+    meme_home.mkdir(parents=True, exist_ok=True)
 
-    core_mod.MEME_HOME.mkdir(parents=True, exist_ok=True)
-    for d in [
-        core_mod.WORKING_DIR,
-        core_mod.ARCHIVE_DIR,
-        core_mod.COLD_DIR,
-        core_mod.VAULT_DIR,
-        core_mod.BACKUPS_DIR,
-        core_mod.META_DIR,
-        core_mod.BIN_DIR,
-    ]:
+    # Create directory structure directly on the temp path
+    working_dir = meme_home / "working"
+    archive_dir = meme_home / "archive"
+    cold_dir = meme_home / "cold"
+    vault_dir = meme_home / "vault"
+    backups_dir = meme_home / "backups"
+    meta_dir = meme_home / "meta"
+    bin_dir = meme_home / "bin"
+
+    for d in [working_dir, archive_dir, cold_dir, vault_dir, backups_dir, meta_dir, bin_dir]:
         d.mkdir(parents=True, exist_ok=True)
     for sub in ["projects", "feedback", "knowledge", "corrections"]:
-        (core_mod.ARCHIVE_DIR / sub).mkdir(parents=True, exist_ok=True)
+        (archive_dir / sub).mkdir(parents=True, exist_ok=True)
 
-    # Write empty meta files
-    core_mod.save_index({})
-    core_mod.save_graph({})
-    (core_mod.MEME_HOME / ".gitignore").write_text("vault/*.enc\n", encoding="utf-8")
-    return core_mod.MEME_HOME
+    # Write empty meta files directly
+    (meta_dir / "index.json").write_text("{}", encoding="utf-8")
+    (meta_dir / "graph.json").write_text("{}", encoding="utf-8")
+    (meme_home / ".gitignore").write_text("vault/*.enc\n", encoding="utf-8")
+    return meme_home
 
 
 @pytest.fixture
