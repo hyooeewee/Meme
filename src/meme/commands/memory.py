@@ -24,7 +24,7 @@ from meme.utils import (
     find_memory_by_id, get_tier, get_memory_dir,
     rebuild_memory_md, _update_index_entry,
     _remove_from_index, _add_to_graph, _remove_from_graph,
-    _get_package_resource_path,
+    _get_package_resource_path, create_memory_record,
 )
 from meme.vault import (
     _touch_id_auth, _get_vault_key,
@@ -168,25 +168,7 @@ def cmd_add(args):
     tier = get_tier(meta)
     mem_dir = get_memory_dir(mem_type, tier)
 
-    # Handle sensitive memories — encrypt and save to vault
-    if sensitive:
-        mem_path = save_vault_memory(mem_id, meta, content)
-        # Index with vault path
-        _update_index_entry(mem_id, meta, mem_path)
-    else:
-        mem_path = get_memory_dir(mem_type, tier) / f"{mem_id}.md"
-        save_memory(mem_path, meta, content)
-        _update_index_entry(mem_id, meta, mem_path)
-
-    # Update graph
-    if links:
-        _add_to_graph(mem_id, links)
-
-    # Update MEMORY.md
-    rebuild_memory_md()
-
-    # Git commit
-    git_commit(f"add: {mem_id}", [mem_path, INDEX_PATH, GRAPH_PATH, MEMORY_MD_PATH])
+    mem_path = create_memory_record(meta, content)
 
     print(f"Added memory: {mem_id}")
     print(f"  Type: {mem_type}, Importance: {importance}, Tier: {tier}")

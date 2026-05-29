@@ -10,7 +10,7 @@ from meme.constants import ARCHIVE_DIR, SUBDIRS, INDEX_PATH, GRAPH_PATH, MEMORY_
 from meme.utils import (
     generate_id, git_commit, find_all_memories, load_memory, parse_frontmatter,
     find_memory_by_id, get_tier, get_memory_dir, save_memory, _update_index_entry,
-    rebuild_memory_md,
+    rebuild_memory_md, create_memory_record,
 )
 
 # ========================================
@@ -89,17 +89,9 @@ def cmd_learn(args):
         meta["links"] = related
         _add_to_graph(mem_id, related)
 
-    # Save
-    tier = get_tier(meta)
-    mem_dir = get_memory_dir("knowledge", tier)
-    mem_path = mem_dir / f"{mem_id}.md"
-
     # Truncate body for storage
     body = content[:5000] if len(content) > 5000 else content
-    save_memory(mem_path, meta, body)
-    _update_index_entry(mem_id, meta, mem_path)
-    rebuild_memory_md()
-    git_commit(f"learn: {mem_id}", [mem_path, INDEX_PATH, GRAPH_PATH, MEMORY_MD_PATH])
+    mem_path = create_memory_record(meta, body)
 
     print(f"Learned: {mem_id}")
     print(f"  Tags: {', '.join(tags)}")
@@ -162,7 +154,9 @@ def _do_import_claude(dry_run: bool = False):
         print("No Claude Code projects found.")
         return
 
-    imported = 0
+    imports = []  # [(meta, body, project_name, fname, mem_path), ...]
+    imported_ids: dict[str, list[str]] = {}
+
     for proj_dir in claude_projects.iterdir():
         if not proj_dir.is_dir():
             continue
@@ -171,7 +165,6 @@ def _do_import_claude(dry_run: bool = False):
             continue
 
         project_name = proj_dir.name.lstrip("-").replace("-", "_")
-        # Try to extract a cleaner project name
         parts = project_name.split("_")
         project_name = parts[-1] if parts else project_name
 
@@ -182,7 +175,6 @@ def _do_import_claude(dry_run: bool = False):
                 text = md_file.read_text(encoding="utf-8")
                 meta, body = parse_frontmatter(text)
 
-                # Determine type from filename prefix
                 fname = md_file.stem
                 if fname.startswith("feedback_"):
                     mem_type = "feedback"
@@ -195,10 +187,8 @@ def _do_import_claude(dry_run: bool = False):
                 else:
                     mem_type = "feedback"
 
-                # Generate ID if missing
                 if not meta.get("id"):
                     meta["id"] = generate_id(mem_type, fname)
-
                 if not meta.get("type"):
                     meta["type"] = mem_type
                 if not meta.get("importance"):
@@ -214,32 +204,37 @@ def _do_import_claude(dry_run: bool = False):
                 elif project_name not in meta["tags"]:
                     meta["tags"].append(project_name)
 
-                # Check for duplicate
-                existing = find_memory_by_id(meta["id"])
-                if existing:
+                if find_memory_by_id(meta["id"]):
                     continue
 
                 tier = get_tier(meta)
                 mem_dir = get_memory_dir(mem_type, tier)
                 mem_path = mem_dir / f"{meta['id']}.md"
 
-                if dry_run:
-                    print(f"  [dry-run] Would import {md_file.name} -> {mem_path}")
-                    imported += 1
-                    continue
-
-                # Save to archive
-                save_memory(mem_path, meta, body)
-                _update_index_entry(meta["id"], meta, mem_path)
-                imported += 1
+                imported_ids.setdefault(project_name, []).append(meta["id"])
+                imports.append((meta, body, project_name, fname, mem_path))
             except Exception as e:
                 print(f"  Failed to import {md_file}: {e}")
 
-    if imported and not dry_run:
-        rebuild_memory_md()
-        git_commit(f"import: {imported} memories from Claude Code")
-    mode = "Would import" if dry_run else "Imported"
-    print(f"{mode} {imported} memories from Claude Code projects.")
+    if dry_run:
+        for meta, _body, project_name, fname, mem_path in imports:
+            peers = [mid for mid in imported_ids[project_name] if mid != meta["id"]]
+            print(f"  [dry-run] Would import {fname} -> {mem_path}")
+            if peers:
+                print(f"            Links: {', '.join(peers)}")
+        print(f"Would import {len(imports)} memories from Claude Code projects.")
+        return
+
+    imported = 0
+    for meta, body, project_name, _fname, _mem_path in imports:
+        peers = [mid for mid in imported_ids[project_name] if mid != meta["id"]]
+        existing = meta.get("links", [])
+        meta["links"] = list(set(existing + peers))
+        create_memory_record(meta, body)
+        imported += 1
+
+    if imported:
+        print(f"Imported {imported} memories from Claude Code projects.")
 
 
 def _do_import_claude_global():

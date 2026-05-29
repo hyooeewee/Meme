@@ -126,6 +126,32 @@ def save_memory(path: Path, meta: dict, body: str):
         meta = meta.to_dict()
     path.write_text(render_frontmatter(meta, body), encoding="utf-8")
 
+
+def create_memory_record(meta: dict, body: str) -> Path:
+    """Unified memory creation: save file, update index/graph, rebuild MEMORY.md, git commit."""
+    mem_id = meta["id"]
+    mem_type = meta.get("type", "feedback")
+    tier = get_tier(meta)
+    sensitive = meta.get("sensitive", False)
+
+    if sensitive:
+        from meme.vault import save_vault_memory
+        mem_path = save_vault_memory(mem_id, meta, body)
+    else:
+        mem_dir = get_memory_dir(mem_type, tier)
+        mem_path = mem_dir / f"{mem_id}.md"
+        save_memory(mem_path, meta, body)
+
+    _update_index_entry(mem_id, meta, mem_path)
+
+    links = meta.get("links", [])
+    if links:
+        _add_to_graph(mem_id, links)
+
+    rebuild_memory_md()
+    git_commit(f"add: {mem_id}", [mem_path, INDEX_PATH, GRAPH_PATH, MEMORY_MD_PATH])
+    return mem_path
+
 # ========================================
 # Utility: Token counting
 # ========================================
